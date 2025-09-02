@@ -16,12 +16,20 @@ async def main():
         print("ROBOT_DEVIL_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
         return
         
-    if not settings.MATCH_VOICE_CHANNEL_ID:
-        print("MATCH_VOICE_CHANNEL_ID no encontrado en las variables de entorno")
+    if not settings.TERMOS_VOICE_CHANNEL_ID:
+        print("TERMOS_VOICE_CHANNEL_ID no encontrado en las variables de entorno")
         return
     
-    if not settings.MATCH_VOICE_CHANNEL_NAME:
-        print("MATCH_VOICE_CHANNEL_NAME no encontrado en las variables de entorno")
+    if not settings.TERMOS_VOICE_CHANNEL_NAME:
+        print("TERMOS_VOICE_CHANNEL_NAME no encontrado en las variables de entorno")
+        return
+        
+    if not settings.GENERAL_VOICE_CHANNEL_ID:
+        print("GENERAL_VOICE_CHANNEL_ID no encontrado en las variables de entorno")
+        return
+    
+    if not settings.GENERAL_VOICE_CHANNEL_NAME:
+        print("GENERAL_VOICE_CHANNEL_NAME no encontrado en las variables de entorno")
         return
     
     bot = DiabloRobot()

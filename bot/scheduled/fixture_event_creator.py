@@ -39,10 +39,10 @@ class FixtureEventCreator(commands.Cog):
     async def upsert_next_fixture_event(self, team: Teams) -> str:
         """Check for next fixture and create/update event"""
         try:
-            
+            url, channel_name = team.value
             guild = self.bot.get_guild(int(settings.GUILD_ID))
             
-            fixture = scrape_next_match(team.value)
+            fixture = scrape_next_match(url)
             
             if not fixture:
                 message = "No encontré próximo partido"
@@ -70,7 +70,7 @@ class FixtureEventCreator(commands.Cog):
                     existing_event = event
                     break
             
-            channel = discord.utils.get(guild.voice_channels, name=settings.MATCH_VOICE_CHANNEL_NAME)
+            channel = discord.utils.get(guild.voice_channels, name=channel_name)
             
             if existing_event:
                 if existing_event.description.strip() == description.strip() and existing_event.start_time == start_time:
