@@ -1,7 +1,7 @@
 import json
 import requests
 from bs4 import BeautifulSoup
-from datetime import date, datetime
+from datetime import datetime
 import re
 import pytz
 from config.settings import settings
