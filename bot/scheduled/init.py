@@ -1,3 +1,3 @@
-from .fixture_event_creator import FixtureEventCreator
+from .fixture_check import FixtureCheckScheduler
 
-__all__ = ['FixtureEventCreator']
+__all__ = ['FixtureCheckScheduler']

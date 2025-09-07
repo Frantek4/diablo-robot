@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
-from bot.scheduled.fixture_event_creator import FixtureEventCreator
+from bot.scheduled.fixture_check import FixtureCheckScheduler
+from config.messager import init_messager
 from config.settings import settings
 
 class DiabloRobot(commands.Bot):
@@ -10,6 +11,7 @@ class DiabloRobot(commands.Bot):
         intents = discord.Intents.default()
         intents.guilds = True
         intents.messages = True
+        intents.members = True
         intents.reactions = True
         intents.message_content = True
         intents.guild_scheduled_events = True
@@ -23,24 +25,32 @@ class DiabloRobot(commands.Bot):
 
     async def setup_hook(self):
 
+        # Cogs
+        await self.load_extension('bot.cogs.fixture_event_creator')
+        
         # Commands
-        await self.load_extension('bot.commands.fijate')
         await self.load_extension('bot.commands.ping')
+        await self.load_extension('bot.commands.fijate')
+        await self.load_extension('bot.commands.nuevo_juego')
         
-        # Jobs
-        await self.load_extension('bot.scheduled.fixture_event_creator')
+        # Scheduled
+        await self.load_extension('bot.scheduled.fixture_check')
         
-        print("The bot is ON")
+        # Listeners
+        await self.load_extension('bot.listeners.game_role')
+
+        print("ON")
     
 
 
     async def on_ready(self):
         
-        fixture_creator: FixtureEventCreator = self.get_cog('FixtureEventCreator')
-        if fixture_creator:
-            fixture_creator.start_scheduled_job()
+        fixture_creator: FixtureCheckScheduler = self.get_cog('FixtureCheckScheduler')
+        fixture_creator.start_scheduled_job()
 
-        print(f'{self.user} connected to the guild')
+        init_messager(self)
+
+        print(f'{self.user} conectado a Club Atlético Independiente')
         
         await self.change_presence(
             activity=discord.CustomActivity(
@@ -93,16 +103,3 @@ class DiabloRobot(commands.Bot):
     async def on_member_join(self, member):
         return
     
-
-
-    # When a member reacts on a message
-    # TODO Add game interest role based on reactions to game message on the interests showcase text channel (add LoL role by reacting to LoL showcase message)
-    async def on_raw_reaction_add(self, payload):
-        return
-    
-
-
-    # When a member removes the reaction on a message
-    # TODO Remove game interest role based on the removed reaction to game message on the interests showcase text channel (remove LoL role by un-reacting to LoL showcase message)
-    async def on_raw_reaction_add(self, payload):
-        return

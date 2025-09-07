@@ -1,19 +1,37 @@
 import os
 from dotenv import load_dotenv
+import pytz
 
 load_dotenv()
 
 class Settings:
-    TIMEZONE = os.getenv('TIMEZONE')
+    TIMEZONE = pytz.timezone(os.getenv('TIMEZONE'))
+
     # Discord Configuration
+    PREFIX = os.getenv('PREFIX')
     DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
     GUILD_ID = int(os.getenv('GUILD_ID'))
+
+    # Category
+    GENERAL_CATEGORY_ID = int(os.getenv('GENERAL_CATEGORY_ID'))
+    GENERAL_CATEGORY_NAME = os.getenv('GENERAL_CATEGORY_NAME')
+    GAMES_CATEGORY_ID = int(os.getenv('GAMES_CATEGORY_ID'))
+    GAMES_CATEGORY_NAME = os.getenv('GAMES_CATEGORY_NAME')
+
+    # Voice
     GENERAL_VOICE_CHANNEL_ID = int(os.getenv('GENERAL_VOICE_CHANNEL_ID'))
     GENERAL_VOICE_CHANNEL_NAME = os.getenv('GENERAL_VOICE_CHANNEL_NAME')
     TERMOS_VOICE_CHANNEL_ID = int(os.getenv('TERMOS_VOICE_CHANNEL_ID'))
     TERMOS_VOICE_CHANNEL_NAME = os.getenv('TERMOS_VOICE_CHANNEL_NAME')
+
+    # Text
+    GENERAL_TEXT_CHANNEL_ID = int(os.getenv('GENERAL_TEXT_CHANNEL_ID'))
+    GENERAL_TEXT_CHANNEL_NAME = os.getenv('GENERAL_TEXT_CHANNEL_NAME')
+    ANNOUNCEMENTS_TEXT_CHANNEL_ID = int(os.getenv('ANNOUNCEMENTS_TEXT_CHANNEL_ID'))
+    ANNOUNCEMENTS_TEXT_CHANNEL_NAME = os.getenv('ANNOUNCEMENTS_TEXT_CHANNEL_NAME')
+    GAMES_TEXT_CHANNEL_ID = int(os.getenv('GAMES_TEXT_CHANNEL_ID'))
+    GAMES_TEXT_CHANNEL_NAME = os.getenv('GAMES_TEXT_CHANNEL_NAME')
     ROBOT_DEVIL_TEXT_CHANNEL_ID = int(os.getenv('ROBOT_DEVIL_TEXT_CHANNEL_ID'))
-    PREFIX = os.getenv('PREFIX')
-    
+    ROBOT_DEVIL_TEXT_CHANNEL_NAME = os.getenv('ROBOT_DEVIL_TEXT_CHANNEL_NAME')
 
 settings = Settings()

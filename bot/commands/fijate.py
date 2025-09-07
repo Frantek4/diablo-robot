@@ -1,6 +1,6 @@
 from discord.ext import commands
-from bot.scheduled.fixture_event_creator import FixtureEventCreator
-from models.team_urls import Teams
+from bot.cogs.fixture_event_creator import FixtureEventCreator
+from models.team_url import Teams
 
 class FijateCommand(commands.Cog):
     def __init__(self, bot):
@@ -11,11 +11,9 @@ class FijateCommand(commands.Cog):
     @commands.has_permissions(manage_guild=True)
     async def fijate(self, ctx):
         """Manually trigger fixture check"""
-        await ctx.send("Buscando próximos partidos.")
+        await self.bot.messager.log("Buscando próximos partidos.")
         for team in Teams:
-            await ctx.send(team.name.replace("_"," "))
-            response = await self.fixture_event_creator.upsert_next_fixture_event(team)
-            await ctx.send(response)
+            await self.fixture_event_creator.upsert_next_fixture_event(team)
 
 async def setup(bot):
     await bot.add_cog(FijateCommand(bot))
