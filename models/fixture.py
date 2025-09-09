@@ -107,7 +107,7 @@ class Fixture:
             changes.append(self.format_change("🏟️", self.stadium, other.stadium))
             
         if self.referee != other.referee:
-            changes.append(self.format_change("⚖️", self.referee, self.referee))
+            changes.append(self.format_change("⚖️", self.referee, other.referee))
             
         if self.tv_channels != other.tv_channels:
             changes.append(self.format_change("📺", self.tv_channels, other.tv_channels))
