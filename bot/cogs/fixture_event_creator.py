@@ -33,7 +33,7 @@ class FixtureEventCreator(commands.Cog):
             event_name = f"Watch Party - {fixture.local_team} vs {fixture.visiting_team}"
             
             start_time = fixture.date_time - timedelta(minutes=15)
-            end_time = start_time + timedelta(hours=1, minutes=45)
+            end_time = start_time + timedelta(hours=2)
             
             existing_events = await guild.fetch_scheduled_events()
             existing_event = None
