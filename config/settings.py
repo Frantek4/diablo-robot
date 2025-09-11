@@ -34,4 +34,8 @@ class Settings:
     ROBOT_DEVIL_TEXT_CHANNEL_ID = int(os.getenv('ROBOT_DEVIL_TEXT_CHANNEL_ID'))
     ROBOT_DEVIL_TEXT_CHANNEL_NAME = os.getenv('ROBOT_DEVIL_TEXT_CHANNEL_NAME')
 
+    #Forums
+    FOOTBALL_FORUM_ID=int(os.getenv('FOOTBALL_FORUM_ID'))
+    FOOTBALL_FORUM_NAME=os.getenv('FOOTBALL_FORUM_NAME')
+
 settings = Settings()

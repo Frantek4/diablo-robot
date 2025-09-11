@@ -90,6 +90,14 @@ def validate() -> bool:
     if not settings.ROBOT_DEVIL_TEXT_CHANNEL_NAME:
         print("ROBOT_DEVIL_TEXT_CHANNEL_NAME no encontrado en las variables de entorno")
         passed = False
+
+    if not settings.FOOTBALL_FORUM_ID:
+        print("FOOTBALL_FORUM_ID no encontrado en las variables de entorno")
+        passed = False
+    
+    if not settings.FOOTBALL_FORUM_NAME:
+        print("FOOTBALL_FORUM_NAME no encontrado en las variables de entorno")
+        passed = False
     
     return passed
 

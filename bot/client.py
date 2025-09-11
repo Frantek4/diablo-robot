@@ -38,6 +38,8 @@ class DiabloRobot(commands.Bot):
         
         # Listeners
         await self.load_extension('bot.listeners.game_role')
+        await self.load_extension('bot.listeners.event_start_announcer')
+        await self.load_extension('bot.listeners.post_match_discussion')
 
         print("ON")
     

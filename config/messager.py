@@ -13,6 +13,7 @@ class Messager:
         self.announcements_channel = discord.utils.get(self.guild.text_channels, name=settings.ANNOUNCEMENTS_TEXT_CHANNEL_NAME)
         self.games_channel = discord.utils.get(self.guild.text_channels, name=settings.GAMES_TEXT_CHANNEL_NAME)
         self.devil_robot_channel = discord.utils.get(self.guild.text_channels, name=settings.ROBOT_DEVIL_TEXT_CHANNEL_NAME)
+        self.football_forum = discord.utils.get(self.guild.channels, name=settings.FOOTBALL_FORUM_NAME, type=discord.ChannelType.forum)
 
         missing_channels = []
         if not self.general_channel:
@@ -23,6 +24,8 @@ class Messager:
             missing_channels.append(settings.GAMES_TEXT_CHANNEL_NAME)
         if not self.devil_robot_channel:
             missing_channels.append(settings.ROBOT_DEVIL_TEXT_CHANNEL_NAME)
+        if not self.football_forum:
+            missing_channels.append(settings.FOOTBALL_FORUM_NAME)
 
         if missing_channels:
             raise RuntimeError(f"Canales no encontrados: {', '.join(missing_channels)}. Revisá las configuraciones.")
@@ -35,6 +38,13 @@ class Messager:
 
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)
+
+    async def post_thread(self,title:str,content:str):
+        return await self.football_forum.create_thread(
+            title=title,
+            content=content,
+            auto_archive_duration=1440
+        )
 
     async def add_to_catalogue(self, title: str, attachment_file: discord.File):
         message = await self.games_channel.send(content=title, file=attachment_file)
