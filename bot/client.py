@@ -27,6 +27,7 @@ class DiabloRobot(commands.Bot):
 
         # Cogs
         await self.load_extension('bot.cogs.fixture_event_creator')
+        await self.load_extension('bot.cogs.event_lifecycle_manager')
         
         # Commands
         await self.load_extension('bot.commands.ping')

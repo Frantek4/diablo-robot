@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
-from bot.ui.signup_button import EventRedirectView
+from bot.cogs.event_lifecycle_manager import EventLifecycleManager
+from bot.ui.event_detail_button import EventRedirectView
 from models.fixture import Fixture
 from models.team_url import Teams
 from services.promiedos_scraper import scrape_next_match
@@ -12,6 +13,7 @@ class FixtureEventCreator(commands.Cog):
 
     def __init__(self,bot):
         self.bot = bot
+        self.event_lifecycle_manager = EventLifecycleManager(bot)
 
     async def upsert_next_fixture_event(self, team: Teams) -> None:
         try:
@@ -21,7 +23,6 @@ class FixtureEventCreator(commands.Cog):
             fixture: Fixture = scrape_next_match(url)
             
             if not fixture:
-                await self.bot.messager.log(f"No encontré próximo partido para {team.name}")
                 return
             
             local_tz = settings.TIMEZONE
@@ -33,7 +34,7 @@ class FixtureEventCreator(commands.Cog):
             event_name = f"Watch Party - {fixture.local_team} vs {fixture.visiting_team}"
             
             start_time = fixture.date_time - timedelta(minutes=15)
-            end_time = start_time + timedelta(hours=2)
+            end_time = start_time + timedelta(hours=2, minutes=15)
             
             existing_events = await guild.fetch_scheduled_events()
             existing_event = None
@@ -44,7 +45,7 @@ class FixtureEventCreator(commands.Cog):
                     break
             
             channel_obj = discord.utils.get(guild.voice_channels, name=channel_name)
-            view = EventRedirectView(settings.GUILD_ID,event.id,start_time)
+ 
             
             if existing_event:
                 existing_fixture = Fixture().from_description(existing_event.description)   
@@ -71,6 +72,9 @@ class FixtureEventCreator(commands.Cog):
                 privacy_level=discord.PrivacyLevel.guild_only
             )
 
+            self.event_lifecycle_manager.schedule_event_lifecycle(event)
+
+            view = EventRedirectView(settings.GUILD_ID,event.id,start_time)
             await self.bot.messager.announce_interactive(f"** *¡Nuevo evento!* **\n\n{fixture.to_description()}", view)
             
         except Exception as e:

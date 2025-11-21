@@ -1,1 +1,144 @@
-{"games": {"1": {"game_name": "League of Legends", "message_id": 1414043826271682631, "text_channel_id": 1414043816775782473}, "2": {"game_name": "Ajedrez", "message_id": 1414066381737033839, "text_channel_id": 1414066376297021442}, "3": {"game_name": "Truco", "message_id": 1414068237007585341, "text_channel_id": 1414068229101584570}, "4": {"game_name": "Counter-Strike 2", "message_id": 1414068483267891232, "text_channel_id": 1414068476292632586}, "5": {"game_name": "Apex Legends", "message_id": 1414069852091711530, "text_channel_id": 1414069846945173574}, "6": {"game_name": "Warcraft III", "message_id": 1414070752327503894, "text_channel_id": 1414070745260228728}, "7": {"game_name": "Age of Empires II", "message_id": 1414071231774326835, "text_channel_id": 1414071227223507034}, "8": {"game_name": "Age of Empires III", "message_id": 1414071406639054969, "text_channel_id": 1414071399550812291}, "9": {"game_name": "StarCraft", "message_id": 1414074147801403532, "text_channel_id": 1414074142747005131}, "10": {"game_name": "StarCraft II", "message_id": 1414074462839771256, "text_channel_id": 1414074455126311063}, "11": {"game_name": "Fortnite", "message_id": 1414074894525665280, "text_channel_id": 1414074888955629678}, "12": {"game_name": "Rocket League", "message_id": 1414075292582154282, "text_channel_id": 1414075286663860415}, "13": {"game_name": "GTAV", "message_id": 1414077326492176448, "text_channel_id": 1414077322541269174}, "14": {"game_name": "Overwatch", "message_id": 1414087289952272479, "text_channel_id": 1414087283744964608}, "15": {"game_name": "Marvel Rivals", "message_id": 1414088190683512853, "text_channel_id": 1414088183053946880}, "16": {"game_name": "Team Fortress 2", "message_id": 1414088941040308252, "text_channel_id": 1414088935910674492}, "17": {"game_name": "DotA 2", "message_id": 1414089757801316502, "text_channel_id": 1414089748968112270}, "18": {"game_name": "Rainbow Six Siege", "message_id": 1414091041321123961, "text_channel_id": 1414091028155338823}, "19": {"game_name": "Mortal Kombat", "message_id": 1414092149196062830, "text_channel_id": 1414092136449573016}, "20": {"game_name": "Guilty Gear", "message_id": 1414092835057307758, "text_channel_id": 1414092831135371355}, "21": {"game_name": "Sea of Thieves", "message_id": 1414280516026503229, "text_channel_id": 1414280509151903785}, "22": {"game_name": "Phasmophobia", "message_id": 1414280801230786641, "text_channel_id": 1414280792590520391}, "23": {"game_name": "Deep Rock Galactic", "message_id": 1414281274843201536, "text_channel_id": 1414281268287373322}, "24": {"game_name": "Lethal Company", "message_id": 1414281415566168134, "text_channel_id": 1414281410209910935}, "25": {"game_name": "Overcooked!", "message_id": 1414281591743709364, "text_channel_id": 1414281580699979917}, "26": {"game_name": "2XKO", "message_id": 1415050549543567401, "text_channel_id": 1415050540793991239}}}
+{
+    "games": {
+        "1": {
+            "game_name": "League of Legends",
+            "message_id": 1414043826271682631,
+            "text_channel_id": 1414043816775782473
+        },
+        "2": {
+            "game_name": "Ajedrez",
+            "message_id": 1414066381737033839,
+            "text_channel_id": 1414066376297021442
+        },
+        "3": {
+            "game_name": "Truco",
+            "message_id": 1414068237007585341,
+            "text_channel_id": 1414068229101584570
+        },
+        "4": {
+            "game_name": "Counter-Strike 2",
+            "message_id": 1414068483267891232,
+            "text_channel_id": 1414068476292632586
+        },
+        "5": {
+            "game_name": "Apex Legends",
+            "message_id": 1414069852091711530,
+            "text_channel_id": 1414069846945173574
+        },
+        "6": {
+            "game_name": "Warcraft III",
+            "message_id": 1414070752327503894,
+            "text_channel_id": 1414070745260228728
+        },
+        "7": {
+            "game_name": "Age of Empires II",
+            "message_id": 1414071231774326835,
+            "text_channel_id": 1414071227223507034
+        },
+        "8": {
+            "game_name": "Age of Empires III",
+            "message_id": 1414071406639054969,
+            "text_channel_id": 1414071399550812291
+        },
+        "9": {
+            "game_name": "StarCraft",
+            "message_id": 1414074147801403532,
+            "text_channel_id": 1414074142747005131
+        },
+        "10": {
+            "game_name": "StarCraft II",
+            "message_id": 1414074462839771256,
+            "text_channel_id": 1414074455126311063
+        },
+        "11": {
+            "game_name": "Fortnite",
+            "message_id": 1414074894525665280,
+            "text_channel_id": 1414074888955629678
+        },
+        "12": {
+            "game_name": "Rocket League",
+            "message_id": 1414075292582154282,
+            "text_channel_id": 1414075286663860415
+        },
+        "13": {
+            "game_name": "GTAV",
+            "message_id": 1414077326492176448,
+            "text_channel_id": 1414077322541269174
+        },
+        "14": {
+            "game_name": "Overwatch",
+            "message_id": 1414087289952272479,
+            "text_channel_id": 1414087283744964608
+        },
+        "15": {
+            "game_name": "Marvel Rivals",
+            "message_id": 1414088190683512853,
+            "text_channel_id": 1414088183053946880
+        },
+        "16": {
+            "game_name": "Team Fortress 2",
+            "message_id": 1414088941040308252,
+            "text_channel_id": 1414088935910674492
+        },
+        "17": {
+            "game_name": "DotA 2",
+            "message_id": 1414089757801316502,
+            "text_channel_id": 1414089748968112270
+        },
+        "18": {
+            "game_name": "Rainbow Six Siege",
+            "message_id": 1414091041321123961,
+            "text_channel_id": 1414091028155338823
+        },
+        "19": {
+            "game_name": "Mortal Kombat",
+            "message_id": 1414092149196062830,
+            "text_channel_id": 1414092136449573016
+        },
+        "20": {
+            "game_name": "Guilty Gear",
+            "message_id": 1414092835057307758,
+            "text_channel_id": 1414092831135371355
+        },
+        "21": {
+            "game_name": "Sea of Thieves",
+            "message_id": 1414280516026503229,
+            "text_channel_id": 1414280509151903785
+        },
+        "22": {
+            "game_name": "Phasmophobia",
+            "message_id": 1414280801230786641,
+            "text_channel_id": 1414280792590520391
+        },
+        "23": {
+            "game_name": "Deep Rock Galactic",
+            "message_id": 1414281274843201536,
+            "text_channel_id": 1414281268287373322
+        },
+        "24": {
+            "game_name": "Lethal Company",
+            "message_id": 1414281415566168134,
+            "text_channel_id": 1414281410209910935
+        },
+        "25": {
+            "game_name": "Overcooked!",
+            "message_id": 1414281591743709364,
+            "text_channel_id": 1414281580699979917
+        },
+        "26": {
+            "game_name": "2XKO",
+            "message_id": 1415050549543567401,
+            "text_channel_id": 1415050540793991239
+        },
+        "27": {
+            "game_name": "FC26",
+            "message_id": 1420130742742286358,
+            "text_channel_id": 1420130736798961816
+        },
+        "28": {
+            "game_name": "Half-Life",
+            "message_id": 1420954098001248307,
+            "text_channel_id": 1420954093261947001
+        }
+    }
+}
