@@ -17,7 +17,7 @@ class FixtureEventCreator(commands.Cog):
 
     async def upsert_next_fixture_event(self, team: Teams) -> None:
         try:
-            url, channel_name = team.value
+            url, channel_id = team.value
             guild = self.bot.get_guild(settings.GUILD_ID)
             
             fixture: Fixture = scrape_next_match(url)
@@ -44,7 +44,7 @@ class FixtureEventCreator(commands.Cog):
                     existing_event = event
                     break
             
-            channel_obj = discord.utils.get(guild.voice_channels, name=channel_name)
+            channel_obj = discord.utils.get(guild.voice_channels, id=channel_id)
  
             
             if existing_event:

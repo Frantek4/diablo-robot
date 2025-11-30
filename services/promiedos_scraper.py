@@ -58,7 +58,7 @@ def scrape_next_match(team_url: str) -> Fixture | None:
     start_time_str = match.group(1)
     match_datetime = datetime.strptime(start_time_str, "%d-%m-%Y %H:%M")
     
-    if match_datetime > datetime.today():
+    if match_datetime < datetime.today():
         match_datetime = match_datetime.replace(year=datetime.now().year)
     else:
         match_datetime = match_datetime.replace(year=datetime.now().year + 1)

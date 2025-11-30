@@ -9,23 +9,23 @@ class Messager:
         if not self.guild:
             raise RuntimeError(f"Mensajero invocado antes de conectarse al servidor.")
 
-        self.general_channel = discord.utils.get(self.guild.text_channels, name=settings.GENERAL_TEXT_CHANNEL_NAME)
-        self.announcements_channel = discord.utils.get(self.guild.text_channels, name=settings.ANNOUNCEMENTS_TEXT_CHANNEL_NAME)
-        self.games_channel = discord.utils.get(self.guild.text_channels, name=settings.GAMES_TEXT_CHANNEL_NAME)
-        self.devil_robot_channel = discord.utils.get(self.guild.text_channels, name=settings.ROBOT_DEVIL_TEXT_CHANNEL_NAME)
-        self.football_forum = discord.utils.get(self.guild.channels, name=settings.FOOTBALL_FORUM_NAME, type=discord.ChannelType.forum)
+        self.general_channel = discord.utils.get(self.guild.text_channels, id=settings.GENERAL_TEXT_CHANNEL_ID)
+        self.announcements_channel = discord.utils.get(self.guild.text_channels, id=settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID)
+        self.games_channel = discord.utils.get(self.guild.text_channels, id=settings.GAMES_TEXT_CHANNEL_ID)
+        self.devil_robot_channel = discord.utils.get(self.guild.text_channels, id=settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
+        self.football_forum = discord.utils.get(self.guild.channels, id=settings.FOOTBALL_FORUM_ID, type=discord.ChannelType.forum)
 
         missing_channels = []
         if not self.general_channel:
-            missing_channels.append(settings.GENERAL_TEXT_CHANNEL_NAME)
+            missing_channels.append(settings.GENERAL_TEXT_CHANNEL_ID)
         if not self.announcements_channel:
-            missing_channels.append(settings.ANNOUNCEMENTS_TEXT_CHANNEL_NAME)
+            missing_channels.append(settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID)
         if not self.games_channel:
-            missing_channels.append(settings.GAMES_TEXT_CHANNEL_NAME)
+            missing_channels.append(settings.GAMES_TEXT_CHANNEL_ID)
         if not self.devil_robot_channel:
-            missing_channels.append(settings.ROBOT_DEVIL_TEXT_CHANNEL_NAME)
+            missing_channels.append(settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
         if not self.football_forum:
-            missing_channels.append(settings.FOOTBALL_FORUM_NAME)
+            missing_channels.append(settings.FOOTBALL_FORUM_ID)
 
         if missing_channels:
             raise RuntimeError(f"Canales no encontrados: {', '.join(missing_channels)}. Revisá las configuraciones.")
