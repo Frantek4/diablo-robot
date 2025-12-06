@@ -17,7 +17,7 @@ class FixtureEventCreator(commands.Cog):
 
     async def upsert_next_fixture_event(self, team: Teams) -> None:
         try:
-            url, channel_id = team.value
+            url, image_url, channel_id = team.value
             guild = self.bot.get_guild(settings.GUILD_ID)
             
             fixture: Fixture = scrape_next_match(url)
@@ -28,8 +28,8 @@ class FixtureEventCreator(commands.Cog):
             local_tz = settings.TIMEZONE
             next_week = datetime.now(local_tz) + timedelta(days=7)
             
-            if next_week < fixture.date_time:
-                return
+            #if next_week < fixture.date_time:
+            #    return
                         
             event_name = f"Watch Party - {fixture.local_team} vs {fixture.visiting_team}"
             
@@ -62,6 +62,13 @@ class FixtureEventCreator(commands.Cog):
                 await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{existing_fixture.get_changes(fixture)}", view)
                 return
             
+            try:
+                with open(image_url, "rb") as image_file:
+                    image = image_file.read()
+            except FileNotFoundError:
+                await self.bot.messager.log(f"Imagen no encontrada en: {image_url}")
+                image = None
+            
             event = await guild.create_scheduled_event(
                 name=event_name,
                 description=fixture.to_description(),
@@ -69,7 +76,8 @@ class FixtureEventCreator(commands.Cog):
                 end_time=end_time,
                 channel=channel_obj,
                 entity_type=discord.EntityType.voice,
-                privacy_level=discord.PrivacyLevel.guild_only
+                privacy_level=discord.PrivacyLevel.guild_only,
+                image=image
             )
 
             self.event_lifecycle_manager.schedule_event_lifecycle(event)
