@@ -28,8 +28,8 @@ class FixtureEventCreator(commands.Cog):
             local_tz = settings.TIMEZONE
             next_week = datetime.now(local_tz) + timedelta(days=7)
             
-            #if next_week < fixture.date_time:
-            #    return
+            if next_week < fixture.date_time:
+                return
                         
             event_name = f"Watch Party - {fixture.local_team} vs {fixture.visiting_team}"
             
