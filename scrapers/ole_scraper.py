@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from tinydb import TinyDB, Query
-import os
+import re
 
 class OleScraper:
     def __init__(self, bot):
@@ -20,72 +20,75 @@ class OleScraper:
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
-            news_urls = self._extract_news_urls(soup)
-            new_news = self._filter_new_news(news_urls)
+            news_items = self._extract_news_items(soup)
+            new_news = self._filter_new_news(news_items)
             
-            for url in new_news:
-                await self.bot.messager.news(url,"Olé")
-                self.news_table.insert({'url': url})
+            for item in new_news:
+                # Limpiar descripción: eliminar " Mirá." al final
+                clean_description = re.sub(r'\s*Mirá\.\s*$', '', item['description'], flags=re.IGNORECASE)
+                
+                await self.bot.messager.news(
+                    title=item['title'],
+                    description=clean_description,
+                    url=item['url'],
+                    image_url=item['image_url'],
+                    publisher="Olé"
+                )
+                self.news_table.insert({'url': item['url']})
                 
             return len(new_news)
         except Exception as e:
             await self.bot.messager.log(f"Error al scrapear Olé: {str(e)}")
             return 0
 
-    def _extract_news_urls(self, soup):
-        urls = []
+    def _extract_news_items(self, soup):
+        items = []
         
-        # Buscar en diferentes secciones donde podrían estar las noticias
-        # 1. Buscar en artículos con clases específicas que contengan noticias de Independiente
-        articles = soup.find_all('article', class_=lambda x: x and 'nota' in x.lower() if x else False)
+        # Buscar en la sección principal de noticias
+        news_section = soup.find('section', {'id': 'list-content'})
+        if not news_section:
+            news_section = soup
+            
+        # Buscar artículos y tarjetas de noticias
+        articles = news_section.find_all(['article', 'div'], class_=lambda x: x and ('card' in x.lower() or 'nota' in x.lower() or 'content' in x.lower()) if x else False)
         
         for article in articles:
             link_tag = article.find('a', href=True)
-            if link_tag and '/independiente/' in link_tag['href']:
-                full_url = self._normalize_url(link_tag['href'])
-                if full_url and full_url not in urls:
-                    urls.append(full_url)
-        
-        # 2. Buscar en listas de noticias
-        news_lists = soup.find_all(['ul', 'div'], class_=lambda x: x and ('list' in x.lower() or 'noticias' in x.lower() or 'content' in x.lower()) if x else False)
-        
-        for news_list in news_lists:
-            for link_tag in news_list.find_all('a', href=True):
-                if '/independiente/' in link_tag['href'] and not any(x in link_tag['href'] for x in ['/agenda-deportiva', '/estadisticas', '/autores', '/tags']):
-                    full_url = self._normalize_url(link_tag['href'])
-                    if full_url and full_url not in urls:
-                        urls.append(full_url)
-        
-        # 3. Buscar en tarjetas/notas destacadas
-        cards = soup.find_all('div', class_=lambda x: x and ('card' in x.lower() or 'nota' in x.lower()) if x else False)
-        
-        for card in cards:
-            link_tag = card.find('a', href=True)
-            if link_tag and '/independiente/' in link_tag['href']:
-                full_url = self._normalize_url(link_tag['href'])
-                if full_url and full_url not in urls:
-                    urls.append(full_url)
-        
-        # 4. Buscar en secciones específicas del JSON-LD o data-attributes
-        script_tags = soup.find_all('script', type='application/ld+json')
-        for script in script_tags:
-            if '"independiente"' in script.text.lower():
-                # Extraer URLs de posibles estructuras de datos
-                import json
-                try:
-                    data = json.loads(script.text)
-                    if isinstance(data, dict) and 'itemListElement' in data:
-                        for item in data['itemListElement']:
-                            if 'url' in item and '/independiente/' in item['url']:
-                                full_url = self._normalize_url(item['url'])
-                                if full_url and full_url not in urls:
-                                    urls.append(full_url)
-                except:
-                    pass
-        
-        return urls
+            if not link_tag or '/independiente/' not in link_tag['href']:
+                continue
+                
+            url = self._normalize_url(link_tag['href'])
+            if not url:
+                continue
+                
+            # Extraer título
+            title_tag = article.find(['h2', 'h3', 'h4', 'div'], class_=lambda x: x and ('title' in x.lower() or 'headline' in x.lower()) if x else False)
+            title = title_tag.get_text(strip=True) if title_tag else ""
+            
+            # Extraer descripción
+            desc_tag = article.find(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'bajada' in x.lower() or 'description' in x.lower()) if x else False)
+            description = desc_tag.get_text(strip=True) if desc_tag else ""
+            
+            # Extraer imagen
+            img_tag = article.find('img', src=True)
+            if not img_tag:
+                img_tag = article.find('img', {'data-src': True})
+            image_url = img_tag['src'] if img_tag and img_tag.get('src') else (img_tag['data-src'] if img_tag and img_tag.get('data-src') else None)
+            
+            if image_url and not image_url.startswith('http'):
+                image_url = f"https://www.ole.com.ar{image_url}"
+                
+            items.append({
+                'url': url,
+                'title': title,
+                'description': description,
+                'image_url': image_url
+            })
+            
+        return items
 
     def _normalize_url(self, url):
+        url = url.strip()
         if not url.startswith('http'):
             if url.startswith('//'):
                 url = 'https:' + url
@@ -95,9 +98,9 @@ class OleScraper:
                 url = f"https://www.ole.com.ar/{url}"
         return url if '/independiente/' in url else None
 
-    def _filter_new_news(self, urls):
-        new_urls = []
-        for url in urls:
-            if url and not self.news_table.search(self.News.url == url):
-                new_urls.append(url)
-        return new_urls
+    def _filter_new_news(self, items):
+        new_items = []
+        for item in items:
+            if item['url'] and not self.news_table.search(self.News.url == item['url']):
+                new_items.append(item)
+        return new_items

@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from tinydb import TinyDB, Query
+import re
 
 class TycSportsScraper:
     def __init__(self, bot):
@@ -19,62 +20,78 @@ class TycSportsScraper:
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
-            news_urls = self._extract_news_urls(soup)
-            new_news = self._filter_new_news(news_urls)
+            news_items = self._extract_news_items(soup)
+            new_news = self._filter_new_news(news_items)
             
-            for url in new_news:
-                await self.bot.messager.news(url,"TyC Sports")
-                self.news_table.insert({'url': url})
+            for item in new_news:
+                # Limpiar título: eliminar " - TyC Sports" al final
+                clean_title = re.sub(r'\s*-\s*TyC Sports\s*$', '', item['title'], flags=re.IGNORECASE)
+                
+                await self.bot.messager.news(
+                    title=clean_title,
+                    description=item['description'],
+                    url=item['url'],
+                    image_url=item['image_url'],
+                    publisher="TyC Sports"
+                )
+                self.news_table.insert({'url': item['url']})
                 
             return len(new_news)
         except Exception as e:
             await self.bot.messager.log(f"Error al scrapear TyC Sports: {str(e)}")
             return 0
 
-    def _extract_news_urls(self, soup):
-        urls = []
+    def _extract_news_items(self, soup):
+        items = []
         
-        # 1. Buscar en artículos principales
-        articles = soup.find_all('article', class_=lambda x: x and ('nota' in x.lower() or 'article' in x.lower()) if x else False)
+        # Buscar en la sección principal de noticias
+        news_section = soup.find('div', class_=lambda x: x and 'teamInfo' in x.lower() if x else False)
+        if not news_section:
+            news_section = soup
+            
+        # Buscar artículos y tarjetas de noticias
+        articles = news_section.find_all(['article', 'div'], class_=lambda x: x and ('card' in x.lower() or 'nota' in x.lower() or 'content' in x.lower()) if x else False)
         
         for article in articles:
             link_tag = article.find('a', href=True)
-            if link_tag and ('/independiente/' in link_tag['href'] or '/san-lorenzo/' in link_tag['href']):
-                full_url = self._normalize_url(link_tag['href'])
-                if full_url and full_url not in urls:
-                    urls.append(full_url)
-        
-        # 2. Buscar en tarjetas de noticias
-        cards = soup.find_all('div', class_=lambda x: x and ('card' in x.lower() or 'content' in x.lower()) if x else False)
-        
-        for card in cards:
-            link_tag = card.find('a', href=True)
-            if link_tag and '/independiente/' in link_tag['href']:
-                full_url = self._normalize_url(link_tag['href'])
-                if full_url and full_url not in urls:
-                    urls.append(full_url)
-        
-        # 3. Buscar en listas de noticias
-        news_items = soup.find_all(['li', 'div'], class_=lambda x: x and ('item' in x.lower() or 'noticia' in x.lower() or 'news' in x.lower()) if x else False)
-        
-        for item in news_items:
-            link_tag = item.find('a', href=True)
-            if link_tag and '/independiente/' in link_tag['href']:
-                full_url = self._normalize_url(link_tag['href'])
-                if full_url and full_url not in urls:
-                    urls.append(full_url)
-        
-        # 4. Buscar en el menú o secciones destacadas
-        nav_items = soup.find_all('a', href=True)
-        for link_tag in nav_items:
-            if '/independiente/' in link_tag['href'] and '/noticia/' in link_tag['href']:
-                full_url = self._normalize_url(link_tag['href'])
-                if full_url and full_url not in urls:
-                    urls.append(full_url)
-        
-        return urls
+            if not link_tag or ('/independiente/' not in link_tag['href'] and '/san-lorenzo/' not in link_tag['href']):
+                continue
+                
+            if 'reels' in link_tag['href'].lower():
+                continue
+                
+            url = self._normalize_url(link_tag['href'])
+            if not url:
+                continue
+                
+            # Extraer título
+            title_tag = article.find(['h2', 'h3', 'h4', 'div'], class_=lambda x: x and ('title' in x.lower() or 'headline' in x.lower() or 'titulo' in x.lower()) if x else False)
+            title = title_tag.get_text(strip=True) if title_tag else ""
+            
+            # Extraer descripción
+            desc_tag = article.find(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'bajada' in x.lower() or 'description' in x.lower() or 'resumen' in x.lower()) if x else False)
+            description = desc_tag.get_text(strip=True) if desc_tag else ""
+            
+            # Extraer imagen
+            img_tag = article.find('img', src=True)
+            if not img_tag:
+                img_tag = article.find('img', {'data-src': True})
+            image_url = img_tag['src'] if img_tag and img_tag.get('src') else (img_tag['data-src'] if img_tag and img_tag.get('data-src') else None)
+            
+            if image_url and not image_url.startswith('http'):
+                image_url = f"https://www.tycsports.com{image_url}"
+                
+            items.append({
+                'url': url,
+                'title': title,
+                'description': description,
+                'image_url': image_url
+            })
+            
+        return items
 
     def _normalize_url(self, url):
+        url = url.strip()
         if 'reels' in url.lower():
             return None
             
@@ -87,9 +104,9 @@ class TycSportsScraper:
                 url = f"https://www.tycsports.com/{url}"
         return url if '/independiente/' in url or '/san-lorenzo/' in url else None
 
-    def _filter_new_news(self, urls):
-        new_urls = []
-        for url in urls:
-            if url and not self.news_table.search(self.News.url == url):
-                new_urls.append(url)
-        return new_urls
+    def _filter_new_news(self, items):
+        new_items = []
+        for item in items:
+            if item['url'] and not self.news_table.search(self.News.url == item['url']):
+                new_items.append(item)
+        return new_items
