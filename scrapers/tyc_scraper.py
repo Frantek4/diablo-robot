@@ -23,7 +23,7 @@ class TycSportsScraper:
             new_news = self._filter_new_news(news_urls)
             
             for url in new_news:
-                await self.bot.messager.news(url)
+                await self.bot.messager.news(url,"TyC Sports")
                 self.news_table.insert({'url': url})
                 
             if new_news:
