@@ -42,7 +42,7 @@ class Messager:
     async def announce(self, msg: str):
         await self.announcements_channel.send(msg)
 
-    async def news(self, link: str):
+    async def news(self, link: str, publisher: str):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(link, timeout=10, headers={'User-Agent': 'Mozilla/5.0'}) as response:
@@ -79,7 +79,7 @@ class Messager:
                     if image_url:
                         embed.set_image(url=image_url)
                     
-                    embed.set_footer(text="Noticia automática")
+                    embed.set_footer(text=publisher)
                     
                     await self.news_channel.send(embed=embed)
                     
@@ -87,7 +87,7 @@ class Messager:
             await self.log(f"Tiempo de espera agotado para: {link}")
         except Exception as e:
             await self.log(f"Error al procesar {link}: {str(e)}")
-            
+
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)
 
