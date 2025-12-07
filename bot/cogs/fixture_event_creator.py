@@ -4,7 +4,7 @@ from bot.cogs.event_lifecycle_manager import EventLifecycleManager
 from bot.ui.event_detail_button import EventRedirectView
 from models.fixture import Fixture
 from models.team_url import Teams
-from scrapers.promiedos_scraper import scrape_next_match
+from services.promiedos_scraper import scrape_next_match
 from config.settings import settings
 from datetime import datetime, timedelta
 
