@@ -27,9 +27,6 @@ class OleScraper:
                 await self.bot.messager.news(url,"Olé")
                 self.news_table.insert({'url': url})
                 
-            if new_news:
-                await self.bot.messager.log(f"Se encontraron {len(new_news)} noticias nuevas de Olé")
-                
             return len(new_news)
         except Exception as e:
             await self.bot.messager.log(f"Error al scrapear Olé: {str(e)}")

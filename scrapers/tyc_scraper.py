@@ -26,9 +26,6 @@ class TycSportsScraper:
                 await self.bot.messager.news(url,"TyC Sports")
                 self.news_table.insert({'url': url})
                 
-            if new_news:
-                await self.bot.messager.log(f"Se encontraron {len(new_news)} noticias nuevas de TyC Sports")
-                
             return len(new_news)
         except Exception as e:
             await self.bot.messager.log(f"Error al scrapear TyC Sports: {str(e)}")
