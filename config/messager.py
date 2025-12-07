@@ -1,3 +1,6 @@
+import asyncio
+import aiohttp
+from bs4 import BeautifulSoup
 import discord
 from config.settings import settings
 
@@ -40,8 +43,51 @@ class Messager:
         await self.announcements_channel.send(msg)
 
     async def news(self, link: str):
-        await self.news_channel.send(link)
-
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(link, timeout=10, headers={'User-Agent': 'Mozilla/5.0'}) as response:
+                    if response.status != 200:
+                        await self.log(f"No se pudo cargar el contenido de {link} (Status: {response.status})")
+                        return
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # Extraer metadatos Open Graph
+                    title_tag = soup.find('meta', property='og:title', content=True)
+                    desc_tag = soup.find('meta', property='og:description', content=True)
+                    image_tag = soup.find('meta', property='og:image', content=True)
+                    
+                    # Fallback a metadatos estándar
+                    if not title_tag:
+                        title_tag = soup.title
+                    if not desc_tag:
+                        desc_tag = soup.find('meta', attrs={'name': 'description'}, content=True)
+                    
+                    title = title_tag['content'] if title_tag and hasattr(title_tag, 'content') else (title_tag.text if title_tag else 'Sin título')
+                    description = desc_tag['content'] if desc_tag and hasattr(desc_tag, 'content') else (desc_tag.text if desc_tag else 'Sin descripción')
+                    image_url = image_tag['content'] if image_tag else None
+                    
+                    # Crear embed
+                    embed = discord.Embed(
+                        title=title[:256],
+                        description=description[:4096],
+                        url=link,
+                        color=0x3498db
+                    )
+                    
+                    if image_url:
+                        embed.set_image(url=image_url)
+                    
+                    embed.set_footer(text="Noticia automática")
+                    
+                    await self.news_channel.send(embed=embed)
+                    
+        except asyncio.TimeoutError:
+            await self.log(f"Tiempo de espera agotado para: {link}")
+        except Exception as e:
+            await self.log(f"Error al procesar {link}: {str(e)}")
+            
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)
 
