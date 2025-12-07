@@ -11,6 +11,7 @@ class Messager:
 
         self.general_channel = discord.utils.get(self.guild.text_channels, id=settings.GENERAL_TEXT_CHANNEL_ID)
         self.announcements_channel = discord.utils.get(self.guild.text_channels, id=settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID)
+        self.news_channel = discord.utils.get(self.guild.text_channels, id=settings.NEWS_TEXT_CHANNEL_ID)
         self.games_channel = discord.utils.get(self.guild.text_channels, id=settings.GAMES_TEXT_CHANNEL_ID)
         self.devil_robot_channel = discord.utils.get(self.guild.text_channels, id=settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
         self.football_forum = discord.utils.get(self.guild.channels, id=settings.FOOTBALL_FORUM_ID, type=discord.ChannelType.forum)
@@ -20,6 +21,8 @@ class Messager:
             missing_channels.append(settings.GENERAL_TEXT_CHANNEL_ID)
         if not self.announcements_channel:
             missing_channels.append(settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID)
+        if not self.news_channel:
+            missing_channels.append(settings.NEWS_TEXT_CHANNEL_ID)
         if not self.games_channel:
             missing_channels.append(settings.GAMES_TEXT_CHANNEL_ID)
         if not self.devil_robot_channel:
@@ -35,6 +38,9 @@ class Messager:
     
     async def announce(self, msg: str):
         await self.announcements_channel.send(msg)
+
+    async def news(self, link: str):
+        await self.news_channel.send(link)
 
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)

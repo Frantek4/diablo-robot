@@ -5,9 +5,7 @@ from models.videogame import GameChannel
 
 class GameDAO:
     def __init__(self):
-        db_path = 'database.json'
-        
-        self.db = TinyDB(db_path)
+        self.db = TinyDB('database.json')
         self.games_table = self.db.table('games')
         self.GameQuery = Query()
     

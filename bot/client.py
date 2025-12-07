@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from bot.scheduled.fixture_check import FixtureCheckScheduler
+from bot.scheduled.news_check import NewsCheckScheduler
 from config.messager import init_messager
 from config.settings import settings
 
@@ -36,6 +37,7 @@ class DiabloRobot(commands.Bot):
         
         # Scheduled
         await self.load_extension('bot.scheduled.fixture_check')
+        await self.load_extension('bot.scheduled.news_check')
         
         # Listeners
         await self.load_extension('bot.listeners.game_role')
@@ -50,6 +52,10 @@ class DiabloRobot(commands.Bot):
         
         fixture_creator: FixtureCheckScheduler = self.get_cog('FixtureCheckScheduler')
         fixture_creator.start_scheduled_job()
+
+        news_poster: NewsCheckScheduler = self.get_cog('NewsCheckScheduler')
+        news_poster.start_scheduled_job()
+
 
         init_messager(self)
 

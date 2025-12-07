@@ -46,6 +46,10 @@ def validate() -> bool:
     if not settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID:
         print("ANNOUNCEMENTS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
         passed = False
+
+    if not settings.NEWS_TEXT_CHANNEL_ID:
+        print("ANNOUNCEMENTS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
+        passed = False
     
     if not settings.GAMES_TEXT_CHANNEL_ID:
         print("GAMES_TEXT_CHANNEL_ID no encontrado en las variables de entorno")

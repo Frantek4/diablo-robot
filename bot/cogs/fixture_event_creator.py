@@ -25,8 +25,7 @@ class FixtureEventCreator(commands.Cog):
             if not fixture:
                 return
             
-            local_tz = settings.TIMEZONE
-            next_week = datetime.now(local_tz) + timedelta(days=7)
+            next_week = datetime.now(settings.TIMEZONE) + timedelta(days=7)
             
             if next_week < fixture.date_time:
                 return
