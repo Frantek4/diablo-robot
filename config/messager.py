@@ -3,6 +3,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 import discord
 from config.settings import settings
+from models.news_source import NewsSource
 
 class Messager:
 
@@ -14,7 +15,8 @@ class Messager:
 
         self.general_channel = discord.utils.get(self.guild.text_channels, id=settings.GENERAL_TEXT_CHANNEL_ID)
         self.announcements_channel = discord.utils.get(self.guild.text_channels, id=settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID)
-        self.news_channel = discord.utils.get(self.guild.text_channels, id=settings.NEWS_TEXT_CHANNEL_ID)
+        self.club_channel = discord.utils.get(self.guild.text_channels, id=settings.CLUB_TEXT_CHANNEL_ID)
+        self.press_channel = discord.utils.get(self.guild.text_channels, id=settings.PRESS_TEXT_CHANNEL_ID)
         self.games_channel = discord.utils.get(self.guild.text_channels, id=settings.GAMES_TEXT_CHANNEL_ID)
         self.devil_robot_channel = discord.utils.get(self.guild.text_channels, id=settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
         self.football_forum = discord.utils.get(self.guild.channels, id=settings.FOOTBALL_FORUM_ID, type=discord.ChannelType.forum)
@@ -24,8 +26,8 @@ class Messager:
             missing_channels.append(settings.GENERAL_TEXT_CHANNEL_ID)
         if not self.announcements_channel:
             missing_channels.append(settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID)
-        if not self.news_channel:
-            missing_channels.append(settings.NEWS_TEXT_CHANNEL_ID)
+        if not self.press_channel:
+            missing_channels.append(settings.PRESS_TEXT_CHANNEL_ID)
         if not self.games_channel:
             missing_channels.append(settings.GAMES_TEXT_CHANNEL_ID)
         if not self.devil_robot_channel:
@@ -42,13 +44,13 @@ class Messager:
     async def announce(self, msg: str):
         await self.announcements_channel.send(msg)
 
-    async def news(self, title: str, description: str, url: str, image_url: str = None, publisher: str = ""):
+    async def news(self, type: NewsSource, title: str, description: str, url: str, image_url: str = None, publisher: str = "", color = "#DDDDDD"):
         try:
             embed = discord.Embed(
                 title=title[:256] if title else url,
                 description=description[:4096] if description else "",
                 url=url,
-                color=0x3498db
+                color=discord.Color.from_str(color)
             )
             
             if image_url:
@@ -57,10 +59,13 @@ class Messager:
             if publisher:
                 embed.set_footer(text=publisher)
             
-            await self.news_channel.send(embed=embed)
-            
+            if NewsSource.OFFICIAL == type:
+                await self.club_channel.send(embed=embed)
+            else:
+                await self.press_channel.send(embed=embed)
+        
         except Exception as e:
-            await self.log(f"Error al enviar noticia a {url}: {str(e)}")
+            await self.log(f"Error al enviar noticia {url} a canal {type}: {str(e)}")
 
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)

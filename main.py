@@ -22,14 +22,6 @@ def validate() -> bool:
     if not settings.GUILD_ID:
         print("GUILD_ID no encontrado en las variables de entorno")
         passed = False
-
-    if not settings.GENERAL_CATEGORY_ID:
-        print("GENERAL_CATEGORY_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.GAMES_CATEGORY_ID:
-        print("GAMES_CATEGORY_ID no encontrado en las variables de entorno")
-        passed = False
         
     if not settings.GENERAL_VOICE_CHANNEL_ID:
         print("GENERAL_VOICE_CHANNEL_ID no encontrado en las variables de entorno")
@@ -47,8 +39,12 @@ def validate() -> bool:
         print("ANNOUNCEMENTS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
         passed = False
 
-    if not settings.NEWS_TEXT_CHANNEL_ID:
-        print("ANNOUNCEMENTS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
+    if not settings.CLUB_TEXT_CHANNEL_ID:
+        print("CLUB_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
+        passed = False
+
+    if not settings.PRESS_TEXT_CHANNEL_ID:
+        print("PRESS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
         passed = False
     
     if not settings.GAMES_TEXT_CHANNEL_ID:

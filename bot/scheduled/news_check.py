@@ -1,7 +1,9 @@
 from discord.ext import commands, tasks
 
+from scrapers.instagram_scraper import InstagramScraper
 from scrapers.ole_scraper import OleScraper
 from scrapers.tyc_scraper import TycSportsScraper
+from scrapers.youtube_scraper import YoutubeScraper
 
 
 class NewsCheckScheduler(commands.Cog):
@@ -9,6 +11,8 @@ class NewsCheckScheduler(commands.Cog):
         self.bot = bot
         self.ole_scraper = OleScraper(bot)
         self.tyc_scraper = TycSportsScraper(bot)
+        self.instagram_scraper = InstagramScraper(bot)
+        self.youtube_scraper = YoutubeScraper(bot)
 
 
 
@@ -26,6 +30,8 @@ class NewsCheckScheduler(commands.Cog):
         try:
             await self.ole_scraper.scrape_news()
             await self.tyc_scraper.scrape_news()
+            await self.instagram_scraper.scrape_posts()
+            await self.youtube_scraper.scrape_videos()
 
         except Exception as e:
             await self.bot.messager.log(f"Error buscando nuevas noticias: {str(e)}")

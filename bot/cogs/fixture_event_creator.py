@@ -30,7 +30,7 @@ class FixtureEventCreator(commands.Cog):
             if next_week < fixture.date_time:
                 return
                         
-            event_name = f"Watch Party - {fixture.local_team} vs {fixture.visiting_team}"
+            event_name = f"{fixture.local_team} vs {fixture.visiting_team}"
             
             start_time = fixture.date_time - timedelta(minutes=15)
             end_time = start_time + timedelta(hours=2, minutes=15)
