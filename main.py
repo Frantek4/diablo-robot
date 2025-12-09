@@ -18,9 +18,17 @@ def validate() -> bool:
     if not settings.DISCORD_TOKEN:
         print("DISCORD_TOKEN no encontrado en las variables de entorno")
         passed = False
-    
+
     if not settings.GUILD_ID:
         print("GUILD_ID no encontrado en las variables de entorno")
+        passed = False
+
+    if not settings.IG_USERNAME:
+        print("IG_USERNAME no encontrado en las variables de entorno")
+        passed = False
+    
+    if not settings.IG_PASSWORD:
+        print("IG_PASSWORD no encontrado en las variables de entorno")
         passed = False
         
     if not settings.GENERAL_VOICE_CHANNEL_ID:
@@ -57,6 +65,10 @@ def validate() -> bool:
 
     if not settings.FOOTBALL_FORUM_ID:
         print("FOOTBALL_FORUM_ID no encontrado en las variables de entorno")
+        passed = False
+
+    if not settings.USER_AGENT:
+        print("USER_AGENT no encontrado en las variables de entorno")
         passed = False
     
     return passed

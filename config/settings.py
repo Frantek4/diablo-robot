@@ -12,6 +12,10 @@ class Settings:
     DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
     GUILD_ID = int(os.getenv('GUILD_ID'))
 
+    # Instagram
+    IG_USERNAME = os.getenv('IG_USERNAME')
+    IG_PASSWORD = os.getenv('IG_PASSWORD')
+
     # Voice
     GENERAL_VOICE_CHANNEL_ID = int(os.getenv('GENERAL_VOICE_CHANNEL_ID'))
     TERMOS_VOICE_CHANNEL_ID = int(os.getenv('TERMOS_VOICE_CHANNEL_ID'))
@@ -30,5 +34,7 @@ class Settings:
 
     #Forums
     FOOTBALL_FORUM_ID=int(os.getenv('FOOTBALL_FORUM_ID'))
+
+    USER_AGENT=os.getenv('USER_AGENT')
 
 settings = Settings()

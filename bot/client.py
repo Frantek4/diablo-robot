@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
+from bot.config.playwright import PlaywrightConfig
 from bot.scheduled.fixture_check import FixtureCheckScheduler
 from bot.scheduled.news_check import NewsCheckScheduler
-from config.messager import init_messager
+from bot.config.messager import init_messager
 from config.settings import settings
 
 class DiabloRobot(commands.Bot):
@@ -21,10 +22,17 @@ class DiabloRobot(commands.Bot):
             command_prefix=settings.PREFIX,
             intents=intents
         )
+
+        self.playwright_config = None
     
 
 
     async def setup_hook(self):
+
+        #Playwright
+        self.playwright_config = PlaywrightConfig()
+        await self.playwright_config.initialize()
+        self.playwright = self.playwright_config.get_context()
 
         # Cogs
         await self.load_extension('bot.cogs.fixture_event_creator')
@@ -112,4 +120,5 @@ class DiabloRobot(commands.Bot):
     # TODO Greet new user and give instructive
     async def on_member_join(self, member):
         return
+    
     
