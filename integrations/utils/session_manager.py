@@ -7,8 +7,8 @@ import traceback
 from playwright.async_api import Page
 
 from config.settings import settings
-from scrapers.utils.human_emulation import HumanEmulation
-from scrapers.utils.recaptcha_solver import RecaptchaSolver
+from integrations.utils.human_emulation import HumanEmulation
+from integrations.utils.recaptcha_solver import RecaptchaSolver
 
 
 class SessionManager:
@@ -482,7 +482,7 @@ class SessionManager:
     async def take_screenshot(self, page: Page, name: str, page_name: str = "instagram") -> str:
         """Toma un screenshot para debugging"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(settings.TIMEZONE).strftime("%Y%m%d_%H%M%S")
             filename = f"{name}_{timestamp}.png"
             path = self.screenshots_dir  / page_name / filename
             

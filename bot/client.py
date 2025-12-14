@@ -28,10 +28,6 @@ class DiabloRobot(commands.Bot):
 
     async def setup_hook(self):
 
-        #Playwright
-        # self.playwright_config = PlaywrightConfig()
-        # await self.playwright_config.initialize()
-
         # Cogs
         await self.load_extension('bot.cogs.fixture_event_creator')
         await self.load_extension('bot.cogs.event_lifecycle_manager')

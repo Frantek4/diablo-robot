@@ -4,6 +4,7 @@ from data_access.influencers import InfluencerDAO
 from models.influencer import InfluencerModel
 from models.news_source import NewsSource
 from models.social_media import SocialMedia
+from integrations.youtube import YouTube
 
 class NuevoInfluencer(commands.Cog):
     def __init__(self, bot):
@@ -21,12 +22,29 @@ class NuevoInfluencer(commands.Cog):
                 await self.bot.messager.log(f'{username} ya está registrado para {platform}.')
                 return
             
-            account = InfluencerModel(
-                name=username,
-                description=description,
-                source=source_enum,
-                platform=platform_enum
-            )
+            if platform_enum == SocialMedia.YOUTUBE:
+                channel_id = await YouTube.get_channel_id(username)
+                if not channel_id:
+                    await self.bot.messager.log(f"No se pudo encontrar el canal de YouTube para @{username}")
+                    return
+                
+                account = InfluencerModel(
+                    id=channel_id,
+                    name=username,
+                    description=description,
+                    source=source_enum,
+                    platform=platform_enum
+                )
+
+            elif platform_enum == SocialMedia.INSTAGRAM:
+            
+                account = InfluencerModel(
+                    id=None,
+                    name=username,
+                    description=description,
+                    source=source_enum,
+                    platform=platform_enum
+                )
             
             self.influencer_dao.insert(account)
             
