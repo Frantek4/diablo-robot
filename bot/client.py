@@ -3,7 +3,7 @@ from discord.ext import commands
 from bot.config.playwright import PlaywrightConfig
 from bot.scheduled.fixture_check import FixtureCheckScheduler
 from bot.scheduled.news_check import NewsCheckScheduler
-from bot.config.messager import init_messager
+from bot.config.messager import Messager, init_messager
 from config.settings import settings
 
 class DiabloRobot(commands.Bot):
@@ -22,7 +22,7 @@ class DiabloRobot(commands.Bot):
             command_prefix=settings.PREFIX,
             intents=intents
         )
-
+        self.messager : Messager = None
         self.playwright_config = None
     
 
@@ -30,9 +30,8 @@ class DiabloRobot(commands.Bot):
     async def setup_hook(self):
 
         #Playwright
-        self.playwright_config = PlaywrightConfig()
-        await self.playwright_config.initialize()
-        self.playwright = self.playwright_config.get_context()
+        # self.playwright_config = PlaywrightConfig()
+        # await self.playwright_config.initialize()
 
         # Cogs
         await self.load_extension('bot.cogs.fixture_event_creator')

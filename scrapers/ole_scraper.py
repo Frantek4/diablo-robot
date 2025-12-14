@@ -10,45 +10,45 @@ class OleScraper:
     def __init__(self, bot):
         self.bot = bot
         self.news_dao = NewsDAO()
-        self.url = "https://www.ole.com.ar/independiente"
+        self.domain = "https://www.ole.com.ar"
+        self.urls = ["independiente","seleccion","mundial","futbol-primera"]
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
 
     async def scrape_news(self):
-        try:
-            response = requests.get(self.url, headers=self.headers, timeout=10)
-            response.encoding = 'utf-8'
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'lxml')
-            news = self._extract_news(soup)
+        for url in self.urls:
+            try:
+                response = requests.get(self.domain + "/" + url, headers=self.headers, timeout=10)
+                response.encoding = 'utf-8'
+                response.raise_for_status()
+                
+                soup = BeautifulSoup(response.text, 'lxml')
+                news = self._extract_news(url, soup)
 
-            for item in news:
-                url = self.news_dao.normalize_url("https://www.ole.com.ar", item['url'])
-                if self.news_dao.exists(url):
-                    continue
-                
-                # Limpiar descripción: eliminar " Mirá." al final
-                clean_description = re.sub(r'\s*Mirá\.\s*$', '', item['description'], flags=re.IGNORECASE | re.UNICODE)
-                
-                await self.bot.messager.news(
-                    type=NewsSource.PRESS,
-                    title=item['title'],
-                    description=clean_description,
-                    url=url,
-                    image_url=item['image_url'],
-                    publisher="Olé",
-                    color="#A6CE39"
-                )
-                self.news_dao.insert(url)
-                
-            return len(news)
-        except Exception as e:
-            await self.bot.messager.log(f"Error al scrapear Olé: {str(e)}")
-            return 0
+                for item in news:
+                    news_url = self.news_dao.normalize_url(self.domain, item['url'])
+                    if self.news_dao.exists(news_url):
+                        continue
+                    
+                    clean_description = re.sub(r'\s*Mirá\.\s*$', '', item['description'], flags=re.IGNORECASE | re.UNICODE)
+                    
+                    await self.bot.messager.news(
+                        type=NewsSource.PRESS,
+                        title=item['title'],
+                        description=clean_description,
+                        url=news_url,
+                        image_url=item['image_url'],
+                        publisher="Olé",
+                        color="#A6CE39"
+                    )
+                    self.news_dao.insert(news_url)
+                    
+            except Exception as e:
+                await self.bot.messager.log(f"Error al scrapear Olé ({url}): {str(e)}")
+        
 
-    def _extract_news(self, soup):
+    def _extract_news(self, original_url, soup):
         items = []
         
         # Buscar el script __NEXT_DATA__
@@ -64,7 +64,7 @@ class OleScraper:
                 
                 for item in all_news_data:
                      # Verificar que sea una noticia de independiente
-                     if '/independiente/' in item.get('url', ''):
+                     if '/' + original_url + '/' in item.get('url', ''):
                         url = item.get('url', '')
                         if url:
                             # Extraer título
@@ -76,7 +76,7 @@ class OleScraper:
                             # Extraer imagen - SIMPLIFICADO
                             image_url = self._extract_image_url(item)
                             if image_url:
-                                image_url = self.news_dao.normalize_url("https://www.ole.com.ar", image_url)
+                                image_url = self.news_dao.normalize_url(self.domain, image_url)
                             
                             items.append({
                                 'url': url,

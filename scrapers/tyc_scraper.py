@@ -10,60 +10,57 @@ class TycSportsScraper:
     def __init__(self, bot):
         self.bot = bot
         self.news_dao = NewsDAO()
-        self.url = "https://www.tycsports.com/independiente.html"
+        self.domain = "https://www.tycsports.com"
+        self.urls = ["independiente","seleccion-argentina","liga-profesional-de-futbol"]
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
 
     async def scrape_news(self):
-        try:
-            response = requests.get(self.url, headers=self.headers, timeout=10)
-            response.encoding = 'utf-8'
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'lxml')
-            # Extraer solo los enlaces de noticias de la página principal
-            news_links = self._extract_news_links(soup)
-            
-            for link_data in news_links:
-                url = link_data['url']
-                if self.news_dao.exists(url):
-                    continue
-
-                # Obtener detalles desde la página de la noticia individual
-                detail_data = self._get_article_details(url)
+        for url in self.urls:
+            try:
+                response = requests.get(self.domain + "/" + url + ".html", headers=self.headers, timeout=10)
+                response.encoding = 'utf-8'
+                response.raise_for_status()
                 
-                if not detail_data['title']: # Si no se pudo obtener título, omitir
-                    continue
-
-                # Limpiar título: eliminar " - TyC Sports" al final
-                clean_title = re.sub(r'\s*[-–]\s*TyC Sports\s*$', '', detail_data['title'], flags=re.IGNORECASE | re.UNICODE)
+                soup = BeautifulSoup(response.text, 'lxml')
+                news_links = self._extract_news_links(url, soup)
                 
-                await self.bot.messager.news(
-                    type=NewsSource.PRESS,
-                    title=clean_title,
-                    description=detail_data['description'],
-                    url=url,
-                    image_url=detail_data['image_url'],
-                    publisher="TyC Sports",
-                    color="#0F1A87"
-                )
-                self.news_dao.insert(url)
-                
-            return len(news_links)
-        except Exception as e:
-            await self.bot.messager.log(f"Error al scrapear TyC Sports: {str(e)}")
-            return 0
+                for link_data in news_links:
+                    news_url = link_data['url']
+                    if self.news_dao.exists(news_url):
+                        continue
 
-    def _extract_news_links(self, soup):
+                    detail_data = self._get_article_details(news_url)
+                    
+                    if not detail_data['title']:
+                        continue
+
+                    clean_title = re.sub(r'\s*[-–]\s*TyC Sports\s*$', '', detail_data['title'], flags=re.IGNORECASE | re.UNICODE)
+                    
+                    await self.bot.messager.news(
+                        type=NewsSource.PRESS,
+                        title=clean_title,
+                        description=detail_data['description'],
+                        url=news_url,
+                        image_url=detail_data['image_url'],
+                        publisher="TyC Sports",
+                        color="#0F1A87"
+                    )
+                    self.news_dao.insert(news_url)
+                    
+            except Exception as e:
+                await self.bot.messager.log(f"❌ Error al scrapear TyC Sports ({url}): {str(e)}")
+
+    def _extract_news_links(self, origin_url, soup):
         links = []
         
         # Buscar enlaces de noticias en la página principal
         # Buscar enlaces que contengan '/independiente/' en la URL
         for link in soup.find_all('a', href=True):
             href = link['href']
-            if '/independiente/' in href and '/independiente/' != href.strip('/') and 'reels' not in href.lower():
-                url = self.news_dao.normalize_url("https://www.tycsports.com", href)
+            if '/' + origin_url + '/' in href and '/' + origin_url + '/' != href.strip('/') and 'reels' not in href.lower():
+                url = self.news_dao.normalize_url(self.domain, href)
                 if url:
                     links.append({'url': url})
                 
@@ -114,7 +111,7 @@ class TycSportsScraper:
             if og_image and og_image.get('content'):
                 og_img_url = og_image['content']
                 if not og_img_url.startswith('data:image'):
-                    image_url = self.news_dao.normalize_url("https://www.tycsports.com", og_img_url)
+                    image_url = self.news_dao.normalize_url(self.domain, og_img_url)
             
             # Si og:image falla, intentar con JSON-LD
             if not image_url:
@@ -132,7 +129,7 @@ class TycSportsScraper:
                                 else:
                                     img_url = img_obj # Si es directamente un string
                                 if img_url and not img_url.startswith('data:image'):
-                                    image_url = self.news_dao.normalize_url("https://www.tycsports.com", img_url)
+                                    image_url = self.news_dao.normalize_url(self.domain, img_url)
                     except (json.JSONDecodeError, TypeError):
                         pass # Si no se puede parsear el JSON, ignora
 
@@ -143,7 +140,7 @@ class TycSportsScraper:
                     # Priorizar data-src para lazy loading
                     src_value = img_tag.get('data-src') or img_tag.get('src')
                     if src_value and not src_value.startswith('data:image'):
-                        image_url = self.news_dao.normalize_url("https://www.tycsports.com", src_value)
+                        image_url = self.news_dao.normalize_url(self.domain, src_value)
             
             return {
                 'title': title,
