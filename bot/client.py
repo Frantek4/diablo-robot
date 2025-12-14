@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-from bot.config.playwright import PlaywrightConfig
 from bot.scheduled.fixture_check import FixtureCheckScheduler
 from bot.scheduled.news_check import NewsCheckScheduler
 from bot.config.messager import Messager, init_messager
