@@ -39,7 +39,7 @@ class OleScraper:
                         description=clean_description,
                         url=news_url,
                         image_url=item['image_url'],
-                        publisher="Olé",
+                        publisher= f"Olé • {url}",
                         color="#A6CE39"
                     )
                     self.news_dao.insert(news_url)

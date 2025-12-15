@@ -18,25 +18,6 @@ class YouTube:
         self.news_dao = NewsDAO()
         self.influencer_dao = InfluencerDAO()
     
-    @staticmethod
-    async def get_channel_id(username: str) -> str:
-        """Get YouTube channel ID from @username format using oEmbed API"""
-        try:
-            url = f"{YouTube.domain}/@{username}"
-            oembed_url = f"{YouTube.domain}/oembed?url={url}&format=json"
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(oembed_url, timeout=10) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        author_url = data.get('author_url', '')
-                        if '/channel/' in author_url:
-                            return author_url.split('/channel/')[-1]
-        except Exception as e:
-            print(f"Error getting channel ID for {username}: {e}")
-        
-        return None
-
     async def check_rss_notifications(self):
         """Check RSS feeds for new YouTube videos from registered influencers"""
         youtube_influencers : List[InfluencerModel] = self.influencer_dao.get_by_platform(SocialMedia.YOUTUBE)

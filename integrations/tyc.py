@@ -44,7 +44,7 @@ class TycSportsScraper:
                         description=detail_data['description'],
                         url=news_url,
                         image_url=detail_data['image_url'],
-                        publisher="TyC Sports",
+                        publisher= f"TyC Sports • {url}",
                         color="#0F1A87"
                     )
                     self.news_dao.insert(news_url)

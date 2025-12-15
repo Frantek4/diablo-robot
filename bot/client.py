@@ -36,7 +36,8 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.ping')
         await self.load_extension('bot.commands.fijate')
         await self.load_extension('bot.commands.nuevo_juego')
-        await self.load_extension('bot.commands.nuevo_influencer')
+        await self.load_extension('bot.commands.nuevo_instagram')
+        await self.load_extension('bot.commands.nuevo_youtube')
         
         # Scheduled
         await self.load_extension('bot.scheduled.fixture_check')
