@@ -2,13 +2,11 @@
 import discord
 from discord.ext import commands
 from config.settings import settings
-from data_access.games import get_game_dao
 
 class GameRoleHandler(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.game_dao = get_game_dao()
 
     def _validate_reaction_payload(self, payload: discord.RawReactionActionEvent) -> bool:
         
@@ -37,7 +35,7 @@ class GameRoleHandler(commands.Cog):
             if not member or member.bot:
                 return
 
-            game = self.game_dao.get_game_by_message_id(payload.message_id)
+            game = self.bot.game_dao.get_game_by_message_id(payload.message_id)
             role = discord.utils.get(guild.roles, name=game.name)
             if not role:
                 await self.bot.messager.log(f"Rol '{game.name}' no encontrado")
@@ -64,7 +62,7 @@ class GameRoleHandler(commands.Cog):
         guild = self.bot.get_guild(payload.guild_id)
         
         try:
-            game = self.game_dao.get_game_by_message_id(payload.message_id)
+            game = self.bot.game_dao.get_game_by_message_id(payload.message_id)
             if not game:
                 return
 

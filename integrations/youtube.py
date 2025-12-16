@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 
 import pytz
 from config.settings import settings
-from data_access.influencers import InfluencerDAO
-from data_access.news import NewsDAO
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
 
@@ -15,12 +13,10 @@ class YouTube:
     domain = "https://www.youtube.com"
     def __init__(self, bot):
         self.bot = bot
-        self.news_dao = NewsDAO()
-        self.influencer_dao = InfluencerDAO()
     
     async def check_rss_notifications(self):
         """Check RSS feeds for new YouTube videos from registered influencers"""
-        youtube_influencers : List[InfluencerModel] = self.influencer_dao.get_by_platform(SocialMedia.YOUTUBE)
+        youtube_influencers : List[InfluencerModel] = self.bot.influencer_dao.get_by_platform(SocialMedia.YOUTUBE)
         
         if not youtube_influencers:
             return
@@ -45,10 +41,10 @@ class YouTube:
                         # Process entries (newest first)
                         for entry in feed.entries[:3]:  # Check last 3 videos
                             video_url = entry.link
-                            normalized_url = self.news_dao.normalize_url(YouTube.domain, video_url)
+                            normalized_url = self.bot.news_dao.normalize_url(YouTube.domain, video_url)
                             
                             # Skip if already notified
-                            if self.news_dao.exists(normalized_url):
+                            if self.bot.news_dao.exists(normalized_url):
                                 continue
                             
                             # Parse published date and skip if older than one week
@@ -78,9 +74,8 @@ class YouTube:
                                 publisher=publisher,
                                 color="#FF0000"  # YouTube red
                             )
-                            
                             # Mark as processed
-                            self.news_dao.insert(normalized_url)
+                            self.bot.news_dao.insert(normalized_url)
                             
                             # Small delay between videos
                             await asyncio.sleep(1)

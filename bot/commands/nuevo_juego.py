@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from config.settings import settings
-from data_access.games import get_game_dao
 from models.videogame import GameChannel
 from utils.string_format import to_kebab_case
 
@@ -10,7 +9,6 @@ from utils.string_format import to_kebab_case
 class NuevoJuegoCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.game_dao = get_game_dao()
 
 
 
@@ -24,7 +22,7 @@ class NuevoJuegoCommand(commands.Cog):
 
         await self.bot.messager.log(f"Creando {game_name} como nuevo juego")
 
-        existing_game = self.game_dao.get_game_by_name(game_name)
+        existing_game = self.bot.game_dao.get_game_by_name(game_name)
         if existing_game is not None:
             await self.bot.messager.log(f"Ya existe un mensaje para el juego {game_name}: {existing_game.message_id}")
             return
@@ -101,7 +99,7 @@ class NuevoJuegoCommand(commands.Cog):
             text_channel_id=game_channel.id
         )
 
-        success = self.game_dao.create_game(game)
+        success = self.bot.game_dao.create_game(game)
 
         if not success:
              await self.bot.messager.log(f"Error al crear el juego {game_name} en la base de datos.")

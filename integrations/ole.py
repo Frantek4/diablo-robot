@@ -3,13 +3,11 @@ from bs4 import BeautifulSoup
 import re
 import json
 
-from data_access.news import NewsDAO
 from models.news_source import NewsSource
 
 class OleScraper:
     def __init__(self, bot):
         self.bot = bot
-        self.news_dao = NewsDAO()
         self.domain = "https://www.ole.com.ar"
         self.urls = ["independiente","seleccion","mundial","futbol-primera"]
         self.headers = {
@@ -27,8 +25,8 @@ class OleScraper:
                 news = self._extract_news(url, soup)
 
                 for item in news:
-                    news_url = self.news_dao.normalize_url(self.domain, item['url'])
-                    if self.news_dao.exists(news_url):
+                    news_url = self.bot.news_dao.normalize_url(self.domain, item['url'])
+                    if self.bot.news_dao.exists(news_url):
                         continue
                     
                     clean_description = re.sub(r'\s*Mirá\.\s*$', '', item['description'], flags=re.IGNORECASE | re.UNICODE)
@@ -42,7 +40,7 @@ class OleScraper:
                         publisher= f"Olé • {url}",
                         color="#A6CE39"
                     )
-                    self.news_dao.insert(news_url)
+                    self.bot.news_dao.insert(news_url)
                     
             except Exception as e:
                 await self.bot.messager.log(f"Error al scrapear Olé ({url}): {str(e)}")
@@ -76,7 +74,7 @@ class OleScraper:
                             # Extraer imagen - SIMPLIFICADO
                             image_url = self._extract_image_url(item)
                             if image_url:
-                                image_url = self.news_dao.normalize_url(self.domain, image_url)
+                                image_url = self.bot.news_dao.normalize_url(self.domain, image_url)
                             
                             items.append({
                                 'url': url,

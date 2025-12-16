@@ -4,6 +4,9 @@ from bot.scheduled.fixture_check import FixtureCheckScheduler
 from bot.scheduled.news_check import NewsCheckScheduler
 from bot.config.messager import Messager, init_messager
 from config.settings import settings
+from data_access.games import GameDAO
+from data_access.influencers import InfluencerDAO
+from data_access.news import NewsDAO
 
 class DiabloRobot(commands.Bot):
 
@@ -22,7 +25,11 @@ class DiabloRobot(commands.Bot):
             intents=intents
         )
         self.messager : Messager = None
-        self.playwright_config = None
+
+        #DAOs
+        self.news_dao = NewsDAO()
+        self.games_dao = GameDAO()
+        self.influencer_dao = InfluencerDAO()
     
 
 

@@ -39,12 +39,3 @@ class GameDAO:
 
         return self.get_game_by_name(game_name) is not None
     
-
-
-_game_dao = None
-
-def get_game_dao() -> GameDAO:
-    global _game_dao
-    if _game_dao is None:
-        _game_dao = GameDAO()
-    return _game_dao
