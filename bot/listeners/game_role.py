@@ -35,7 +35,7 @@ class GameRoleHandler(commands.Cog):
             if not member or member.bot:
                 return
 
-            game = self.bot.game_dao.get_game_by_message_id(payload.message_id)
+            game = self.bot.games_dao.get_game_by_message_id(payload.message_id)
             role = discord.utils.get(guild.roles, name=game.name)
             if not role:
                 await self.bot.messager.log(f"Rol '{game.name}' no encontrado")
@@ -62,7 +62,7 @@ class GameRoleHandler(commands.Cog):
         guild = self.bot.get_guild(payload.guild_id)
         
         try:
-            game = self.bot.game_dao.get_game_by_message_id(payload.message_id)
+            game = self.bot.games_dao.get_game_by_message_id(payload.message_id)
             if not game:
                 return
 
