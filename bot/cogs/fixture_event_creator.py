@@ -57,7 +57,7 @@ class FixtureEventCreator(commands.Cog):
                     channel=channel_obj,
                     description=fixture.to_description()
                 )
-
+                view = EventRedirectView(settings.GUILD_ID,event.id,start_time)
                 await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{existing_fixture.get_changes(fixture)}", view)
                 return
             

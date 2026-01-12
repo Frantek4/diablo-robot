@@ -81,7 +81,7 @@ class YouTube:
                             await asyncio.sleep(1)
                 
                 except Exception as e:
-                    await self.bot.messager.log(f"Error observando canal de Youtube {influencer.name}: {str(e)}")
+                    await self.bot.messager.log(f"Error observando canal de Youtube {influencer['name']}: {str(e)}")
                     continue
                 
                 # Delay between channel checks

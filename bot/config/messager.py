@@ -88,8 +88,5 @@ class Messager:
         await self.devil_robot_channel.send(msg)
 
 def init_messager(bot):
-    if hasattr(bot, 'messager') and bot.messager is not None:
-        return bot.messager
-
-    messager = Messager(bot)
-    bot.messager = messager
+    if not hasattr(bot, 'messager') or bot.messager is None:
+        bot.messager = Messager(bot)
