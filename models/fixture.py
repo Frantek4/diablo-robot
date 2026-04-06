@@ -101,14 +101,20 @@ class Fixture:
     def get_changes(self, other: 'Fixture') -> str:
         """Compara dos fixtures y devuelve un texto con las diferencias"""
         changes = []
-        if self.match_date != other.match_date:
-            changes.append(f"- El horario cambió de {self.match_date.strftime('%H:%M')} a {other.match_date.strftime('%H:%M')}")
+
+        # Usamos strings formateados para la comparación de fecha para evitar diferencias por segundos o tzinfo
+        self_date_str = self.match_date.strftime("%d/%m/%Y %H:%M")
+        other_date_str = other.match_date.strftime("%d/%m/%Y %H:%M")
+
+        if self_date_str != other_date_str:
+            changes.append(f"📅: {self_date_str} -> {other_date_str}")
         if self.venue != other.venue:
-            changes.append(f"- El estadio cambió de {self.venue or 'No anunciado'} a {other.venue or 'No anunciado'}")
+            changes.append(f"🏟️: {self.venue or 'No anunciado'} -> {other.venue or 'No anunciado'}")
         if self.referee != other.referee:
-            changes.append(f"- El árbitro cambió de {self.referee or 'No anunciado'} a {other.referee or 'No anunciado'}")
+            changes.append(f"⚖️: {self.referee or 'No anunciado'} -> {other.referee or 'No anunciado'}")
         if self.tv_channels != other.tv_channels:
-            changes.append(f"- La transmisión cambió de {self.tv_channels or 'No anunciado'} a {other.tv_channels or 'No anunciado'}")
+            changes.append(f"📺: {self.tv_channels or 'No anunciado'} -> {other.tv_channels or 'No anunciado'}")
+
         if not changes:
             return "Actualización de información del partido."
         return "\n".join(changes)
