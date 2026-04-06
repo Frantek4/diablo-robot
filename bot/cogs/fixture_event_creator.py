@@ -27,12 +27,12 @@ class FixtureEventCreator(commands.Cog):
             
             next_week = datetime.now(settings.TIMEZONE) + timedelta(days=7)
             
-            if next_week < fixture.date_time:
+            if next_week < fixture.match_date:
                 return
                         
-            event_name = f"{fixture.local_team} vs {fixture.visiting_team}"
+            event_name = f"{fixture.home_team} vs {fixture.away_team}"
             
-            start_time = fixture.date_time - timedelta(minutes=15)
+            start_time = fixture.match_date - timedelta(minutes=15)
             end_time = start_time + timedelta(hours=2, minutes=15)
             
             existing_events = await guild.fetch_scheduled_events()
@@ -47,8 +47,8 @@ class FixtureEventCreator(commands.Cog):
  
             
             if existing_event:
-                existing_fixture = Fixture().from_description(existing_event.description)   
-                if existing_fixture == fixture:
+                existing_fixture = Fixture.from_description(existing_event.description)   
+                if existing_fixture and existing_fixture == fixture:
                     return
                 
                 await existing_event.edit(
@@ -58,7 +58,8 @@ class FixtureEventCreator(commands.Cog):
                     description=fixture.to_description()
                 )
                 view = EventRedirectView(settings.GUILD_ID,event.id,start_time)
-                await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{existing_fixture.get_changes(fixture)}", view)
+                changes = existing_fixture.get_changes(fixture) if existing_fixture else "Se actualizaron los detalles del partido."
+                await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{changes}", view)
                 return
             
             try:
