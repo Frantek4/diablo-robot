@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 import re
+from config.settings import settings
 
 @dataclass
 class Fixture:
@@ -82,10 +83,13 @@ class Fixture:
             tv = tv_match.group(1).strip() if tv_match else None
             if tv == "No anunciado": tv = None
 
+            match_dt = datetime.strptime(date_match.group(1), "%d/%m/%Y %H:%M")
+            match_date = settings.TIMEZONE.localize(match_dt)
+
             return cls(
                 home_team=teams_match.group(1).strip(),
                 away_team=teams_match.group(2).strip(),
-                match_date=datetime.strptime(date_match.group(1), "%d/%m/%Y %H:%M"),
+                match_date=match_date,
                 competition=comp_match.group(1).strip(),
                 venue=venue,
                 referee=ref,
