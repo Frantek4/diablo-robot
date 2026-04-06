@@ -66,7 +66,6 @@ class TycSportsScraper:
                 
         return links
 
-    async def _get_article_details(self, article_url):
     async def _get_article_details(self, article_url, session: aiohttp.ClientSession):
         try:
             async with aiohttp.ClientSession() as session:
