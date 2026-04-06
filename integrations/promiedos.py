@@ -39,18 +39,21 @@ def scrape_next_match(team_url: str) -> Fixture | None:
     match_html = requests.get(match_url, headers=headers)
     match_html.raise_for_status()
 
-    fixture = Fixture()
-
     match_soup = BeautifulSoup(match_html.content, 'html.parser')
+
+    home_team = "A confirmar"
+    away_team = "A confirmar"
+    competition = "Competición"
+    venue = None
 
     meta_description_tag = match_soup.find('meta', attrs={'name': 'description'})
     if meta_description_tag:
         description_content = meta_description_tag.get('content', '')
         match = re.search(r"^(.*?)\s+vs\.?\s+(.*?)\s+en\s+([^\.]+)\.", description_content)
         if match:
-            fixture.visiting_team = match.group(1).strip()
-            fixture.local_team = match.group(2).strip()
-            fixture.competition = match.group(3).strip()
+            home_team = match.group(1).strip()
+            away_team = match.group(2).strip()
+            competition = match.group(3).strip()
     
     time_pattern = r'"start_time":"(\d{2}-\d{2}-\d{4} \d{2}:\d{2})"'
     match = re.search(time_pattern, str(match_soup))
@@ -65,26 +68,21 @@ def scrape_next_match(team_url: str) -> Fixture | None:
 
 
     tz = settings.TIMEZONE
-    fixture.date_time = tz.localize(match_datetime)
+    match_date = tz.localize(match_datetime)
 
     stadium_match = re.search(r'Estadio\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
     if stadium_match:
         potential_stadium = stadium_match.group(1).strip()
         if potential_stadium and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_stadium):
-            fixture.stadium = potential_stadium.split('"')[4]
+            try:
+                venue = potential_stadium.split('"')[4]
+            except IndexError:
+                venue = potential_stadium
 
-    referee_match = re.search(r'Árbitro\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
-    if referee_match:
-        potential_referee = referee_match.group(1).strip()
-        if potential_referee and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_referee):
-            fixture.referee = potential_referee.split('"')[4]
-
-    tv_match = re.search(r'Arg TV\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
-    if tv_match:
-        potential_tv = tv_match.group(1).strip()
-        if potential_tv and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_tv):
-            fixture.tv_channels = potential_tv.split('"')[4]
-
-
-
-    return fixture
+    return Fixture(
+        home_team=home_team,
+        away_team=away_team,
+        match_date=match_date,
+        competition=competition,
+        venue=venue
+    )
