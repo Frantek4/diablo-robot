@@ -45,6 +45,8 @@ def scrape_next_match(team_url: str) -> Fixture | None:
     away_team = "A confirmar"
     competition = "Competición"
     venue = None
+    referee = None
+    tv_channels = None
 
     meta_description_tag = match_soup.find('meta', attrs={'name': 'description'})
     if meta_description_tag:
@@ -79,10 +81,30 @@ def scrape_next_match(team_url: str) -> Fixture | None:
             except IndexError:
                 venue = potential_stadium
 
+    referee_match = re.search(r'Árbitro\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
+    if referee_match:
+        potential_referee = referee_match.group(1).strip()
+        if potential_referee and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_referee):
+            try:
+                referee = potential_referee.split('"')[4]
+            except IndexError:
+                referee = potential_referee
+
+    tv_match = re.search(r'Arg TV\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
+    if tv_match:
+        potential_tv = tv_match.group(1).strip()
+        if potential_tv and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_tv):
+            try:
+                tv_channels = potential_tv.split('"')[4]
+            except IndexError:
+                tv_channels = potential_tv
+
     return Fixture(
         home_team=home_team,
         away_team=away_team,
         match_date=match_date,
         competition=competition,
-        venue=venue
+        venue=venue,
+        referee=referee,
+        tv_channels=tv_channels
     )
