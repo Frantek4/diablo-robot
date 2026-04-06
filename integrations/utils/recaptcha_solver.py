@@ -1,7 +1,7 @@
 import asyncio
 import random
 import traceback
-from discord import Optional
+from typing import Optional
 from playwright.async_api import Page
 
 from config.settings import settings

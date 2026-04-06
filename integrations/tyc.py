@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 import re
 import json
@@ -15,40 +15,42 @@ class TycSportsScraper:
         }
 
     async def scrape_news(self):
-        for url in self.urls:
-            try:
-                response = requests.get(self.domain + "/" + url + ".html", headers=self.headers, timeout=10)
-                response.encoding = 'utf-8'
-                response.raise_for_status()
+        async with aiohttp.ClientSession() as session:
+            for url in self.urls:
+                try:
+                    full_url = f"{self.domain}/{url}.html"
+                    async with session.get(full_url, headers=self.headers, timeout=10) as response:
+                        response.raise_for_status()
+                        html = await response.text()
                 
-                soup = BeautifulSoup(response.text, 'lxml')
-                news_links = self._extract_news_links(url, soup)
-                
-                for link_data in news_links:
-                    news_url = link_data['url']
-                    if self.bot.news_dao.exists(news_url):
-                        continue
+                    soup = BeautifulSoup(html, 'lxml')
+                    news_links = self._extract_news_links(url, soup)
+                    
+                    for link_data in news_links:
+                        news_url = link_data['url']
+                        if self.bot.news_dao.exists(news_url):
+                            continue
 
-                    detail_data = self._get_article_details(news_url)
-                    
-                    if not detail_data['title']:
-                        continue
+                        detail_data = await self._get_article_details(news_url, session)
+                        
+                        if not detail_data['title']:
+                            continue
 
-                    clean_title = re.sub(r'\s*[-–]\s*TyC Sports\s*$', '', detail_data['title'], flags=re.IGNORECASE | re.UNICODE)
-                    
-                    await self.bot.messager.news(
-                        type=NewsSource.PRESS,
-                        title=clean_title,
-                        description=detail_data['description'],
-                        url=news_url,
-                        image_url=detail_data['image_url'],
-                        publisher= f"TyC Sports • {url}",
-                        color="#0F1A87"
-                    )
-                    self.bot.news_dao.insert(news_url)
-                    
-            except Exception as e:
-                await self.bot.messager.log(f"❌ Error al scrapear TyC Sports ({url}): {str(e)}")
+                        clean_title = re.sub(r'\s*[-–]\s*TyC Sports\s*$', '', detail_data['title'], flags=re.IGNORECASE | re.UNICODE)
+                        
+                        await self.bot.messager.news(
+                            type=NewsSource.PRESS,
+                            title=clean_title,
+                            description=detail_data['description'],
+                            url=news_url,
+                            image_url=detail_data['image_url'],
+                            publisher= f"TyC Sports • {url}",
+                            color="#0F1A87"
+                        )
+                        self.bot.news_dao.insert(news_url)
+                        
+                except Exception as e:
+                    await self.bot.messager.log(f"❌ Error al scrapear TyC Sports ({url}): {str(e)}")
 
     def _extract_news_links(self, origin_url, soup):
         links = []
@@ -64,11 +66,16 @@ class TycSportsScraper:
                 
         return links
 
-    def _get_article_details(self, article_url):
+    async def _get_article_details(self, article_url):
+    async def _get_article_details(self, article_url, session: aiohttp.ClientSession):
         try:
-            response = requests.get(article_url, headers=self.headers, timeout=10)
-            response.encoding = 'utf-8'
-            soup = BeautifulSoup(response.text, 'lxml')
+            async with aiohttp.ClientSession() as session:
+                async with session.get(article_url, headers=self.headers, timeout=10) as response:
+                    html = await response.text()
+            async with session.get(article_url, headers=self.headers, timeout=10) as response:
+                html = await response.text()
+            
+            soup = BeautifulSoup(html, 'lxml')
             
             # Extraer el título desde la etiqueta <title> o <h1>
             title = ""

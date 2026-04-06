@@ -6,70 +6,17 @@ from config.settings import settings
 
 def validate() -> bool:
     passed = True
+    required_keys = [
+        'TIMEZONE', 'PREFIX', 'DISCORD_TOKEN', 'GUILD_ID', 'IG_USERNAME', 'IG_PASSWORD',
+        'GENERAL_VOICE_CHANNEL_ID', 'TERMOS_VOICE_CHANNEL_ID', 'GENERAL_TEXT_CHANNEL_ID',
+        'ANNOUNCEMENTS_TEXT_CHANNEL_ID', 'CLUB_TEXT_CHANNEL_ID', 'PRESS_TEXT_CHANNEL_ID',
+        'GAMES_TEXT_CHANNEL_ID', 'ROBOT_DEVIL_TEXT_CHANNEL_ID', 'FOOTBALL_FORUM_ID', 'USER_AGENT'
+    ]
 
-    if not settings.TIMEZONE:
-        print("DISCORD_TOKEN no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.PREFIX:
-        print("PREFIX no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.DISCORD_TOKEN:
-        print("DISCORD_TOKEN no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.GUILD_ID:
-        print("GUILD_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.IG_USERNAME:
-        print("IG_USERNAME no encontrado en las variables de entorno")
-        passed = False
-    
-    if not settings.IG_PASSWORD:
-        print("IG_PASSWORD no encontrado en las variables de entorno")
-        passed = False
-        
-    if not settings.GENERAL_VOICE_CHANNEL_ID:
-        print("GENERAL_VOICE_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.TERMOS_VOICE_CHANNEL_ID:
-        print("TERMOS_VOICE_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.GENERAL_TEXT_CHANNEL_ID:
-        print("GENERAL_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.ANNOUNCEMENTS_TEXT_CHANNEL_ID:
-        print("ANNOUNCEMENTS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.CLUB_TEXT_CHANNEL_ID:
-        print("CLUB_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.PRESS_TEXT_CHANNEL_ID:
-        print("PRESS_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-    
-    if not settings.GAMES_TEXT_CHANNEL_ID:
-        print("GAMES_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-    
-    if not settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
-        print("ROBOT_DEVIL_TEXT_CHANNEL_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.FOOTBALL_FORUM_ID:
-        print("FOOTBALL_FORUM_ID no encontrado en las variables de entorno")
-        passed = False
-
-    if not settings.USER_AGENT:
-        print("USER_AGENT no encontrado en las variables de entorno")
-        passed = False
+    for key in required_keys:
+        if not getattr(settings, key, None):
+            print(f"{key} no encontrado en las variables de entorno")
+            passed = False
     
     return passed
 

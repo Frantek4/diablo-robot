@@ -1,6 +1,3 @@
-import asyncio
-import aiohttp
-from bs4 import BeautifulSoup
 import discord
 from config.settings import settings
 from models.news_source import NewsSource
@@ -19,6 +16,7 @@ class Messager:
         self.press_channel = discord.utils.get(self.guild.text_channels, id=settings.PRESS_TEXT_CHANNEL_ID)
         self.games_channel = discord.utils.get(self.guild.text_channels, id=settings.GAMES_TEXT_CHANNEL_ID)
         self.devil_robot_channel = discord.utils.get(self.guild.text_channels, id=settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
+        self.commentator_channel = discord.utils.get(self.guild.text_channels, id=settings.COMMENTATOR_TEXT_CHANNEL_ID)
         self.football_forum = discord.utils.get(self.guild.channels, id=settings.FOOTBALL_FORUM_ID, type=discord.ChannelType.forum)
 
         missing_channels = []
@@ -37,6 +35,13 @@ class Messager:
 
         if missing_channels:
             raise RuntimeError(f"Canales no encontrados: {', '.join(missing_channels)}. Revisá las configuraciones.")
+
+    async def commentator_update(self, msg: str, embed: discord.Embed = None):
+        """Envía una actualización sobre el partido en vivo"""
+        if embed:
+            await self.commentator_channel.send(content=msg, embed=embed)
+        else:
+            await self.commentator_channel.send(msg)
 
     async def chat(self, msg: str):
         await self.general_channel.send(msg)

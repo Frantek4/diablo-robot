@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 import re
 import json
@@ -15,35 +15,36 @@ class OleScraper:
         }
 
     async def scrape_news(self):
-        for url in self.urls:
-            try:
-                response = requests.get(self.domain + "/" + url, headers=self.headers, timeout=10)
-                response.encoding = 'utf-8'
-                response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, 'lxml')
-                news = self._extract_news(url, soup)
+        async with aiohttp.ClientSession() as session:
+            for url in self.urls:
+                try:
+                    async with session.get(f"{self.domain}/{url}", headers=self.headers, timeout=10) as response:
+                        response.raise_for_status()
+                        html = await response.text()
+                    
+                    soup = BeautifulSoup(html, 'lxml')
+                    news = self._extract_news(url, soup)
 
-                for item in news:
-                    news_url = self.bot.news_dao.normalize_url(self.domain, item['url'])
-                    if self.bot.news_dao.exists(news_url):
-                        continue
-                    
-                    clean_description = re.sub(r'\s*Mirá\.\s*$', '', item['description'], flags=re.IGNORECASE | re.UNICODE)
-                    
-                    await self.bot.messager.news(
-                        type=NewsSource.PRESS,
-                        title=item['title'],
-                        description=clean_description,
-                        url=news_url,
-                        image_url=item['image_url'],
-                        publisher= f"Olé • {url}",
-                        color="#A6CE39"
-                    )
-                    self.bot.news_dao.insert(news_url)
-                    
-            except Exception as e:
-                await self.bot.messager.log(f"Error al scrapear Olé ({url}): {str(e)}")
+                    for item in news:
+                        news_url = self.bot.news_dao.normalize_url(self.domain, item['url'])
+                        if self.bot.news_dao.exists(news_url):
+                            continue
+                        
+                        clean_description = re.sub(r'\s*Mirá\.\s*$', '', item['description'], flags=re.IGNORECASE | re.UNICODE)
+                        
+                        await self.bot.messager.news(
+                            type=NewsSource.PRESS,
+                            title=item['title'],
+                            description=clean_description,
+                            url=news_url,
+                            image_url=item['image_url'],
+                            publisher= f"Olé • {url}",
+                            color="#A6CE39"
+                        )
+                        self.bot.news_dao.insert(news_url)
+                        
+                except Exception as e:
+                    await self.bot.messager.log(f"Error al scrapear Olé ({url}): {str(e)}")
         
 
     def _extract_news(self, original_url, soup):
