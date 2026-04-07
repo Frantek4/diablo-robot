@@ -21,16 +21,15 @@ class LiveMatchScheduler(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_upcoming_matches(self):
-        """Busca partidos que comiencen pronto para iniciar el tracking"""
+        """Busca partidos que comiencen pronto o estén en curso para iniciar el tracking"""
         next_match = self.bot.fixture_dao.get_next_match()
         if not next_match or not next_match.id:
             return
 
-        now = datetime.now()
+        now = datetime.now(settings.TIMEZONE)
         time_to_match = next_match.match_date - now
 
-        # Si el partido empieza en menos de 15 min y no está siendo trackeado
-        if timedelta(minutes=0) <= time_to_match <= timedelta(minutes=15):
+        if timedelta(minutes=-180) <= time_to_match <= timedelta(minutes=15):
             if next_match.id not in self.active_trackers:
                 asyncio.create_task(self.track_match_live(next_match.id))
 
@@ -50,17 +49,15 @@ class LiveMatchScheduler(commands.Cog):
                         data = await resp.json()
                         game = data.get("game", {})
                         status_enum = game.get("status", {}).get("enum", 0)
+                        status_name = game.get("status", {}).get("name", "").lower()
                         
-                        # 1. Enviar formaciones una sola vez cuando estén disponibles
                         if not self.active_trackers[match_id]["lineups_sent"]:
                             await self._send_lineups(game)
                             self.active_trackers[match_id]["lineups_sent"] = True
 
-                        # 2. Procesar eventos de la línea de tiempo
                         await self._process_events(match_id, game)
 
-                        # 3. Finalizar si el partido terminó (enum 3 suele ser Finalizado)
-                        if status_enum == 3:
+                        if status_enum == 3 and "penales" not in status_name:
                             final_score = f"{game['teams'][0]['name']} {int(game['scores'][0])} - {int(game['scores'][1])} {game['teams'][1]['name']}"
                             await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
                             del self.active_trackers[match_id]
