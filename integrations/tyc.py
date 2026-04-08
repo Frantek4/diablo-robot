@@ -1,9 +1,12 @@
+import logging
 import aiohttp
 from bs4 import BeautifulSoup
 import re
 import json
 
 from models.news_source import NewsSource
+
+logger = logging.getLogger(__name__)
 
 class TycSportsScraper:
     def __init__(self, bot):
@@ -68,10 +71,7 @@ class TycSportsScraper:
 
     async def _get_article_details(self, article_url, session: aiohttp.ClientSession):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(article_url, headers=self.headers, timeout=10) as response:
-                    html = await response.text()
-            async with session.get(article_url, headers=self.headers, timeout=10) as response:
+            async with session.get(article_url, headers=self.headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 html = await response.text()
             
             soup = BeautifulSoup(html, 'lxml')
@@ -152,5 +152,5 @@ class TycSportsScraper:
                 'image_url': image_url
             }
         except Exception as e:
-            print(f"Error obteniendo detalles de {article_url}: {e}")
+            logger.error(f"Error obteniendo detalles de {article_url}: {e}")
             return {'title': '', 'description': '', 'image_url': None}

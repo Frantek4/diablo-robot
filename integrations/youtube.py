@@ -4,7 +4,6 @@ import aiohttp
 import feedparser
 from datetime import datetime, timedelta
 
-import pytz
 from config.settings import settings
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
@@ -50,7 +49,7 @@ class YouTube:
                             # Parse published date and skip if older than one week
                             try:
                                 published_date = datetime.strptime(entry.published, '%Y-%m-%dT%H:%M:%S%z')
-                                published_date = published_date.replace(tzinfo=pytz.UTC)
+                                published_date = published_date.astimezone(settings.TIMEZONE)
                                 
                                 if published_date < one_week_ago:
                                     continue

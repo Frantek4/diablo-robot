@@ -1,3 +1,4 @@
+import logging
 import discord
 from discord.ext import commands
 from bot.scheduled.fixture_check import FixtureCheckScheduler
@@ -7,6 +8,9 @@ from config.settings import settings
 from data_access.games import GameDAO
 from data_access.influencers import InfluencerDAO
 from data_access.news import NewsDAO
+
+logger = logging.getLogger(__name__)
+
 
 class DiabloRobot(commands.Bot):
 
@@ -55,7 +59,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.listeners.event_start_announcer')
         await self.load_extension('bot.listeners.post_match_discussion')
 
-        print("ON")
+        logger.info("Setup hook completado — Extensiones cargadas")
     
 
 
@@ -70,7 +74,7 @@ class DiabloRobot(commands.Bot):
 
         init_messager(self)
 
-        print(f'{self.user} conectado a Club Atlético Independiente')
+        logger.info(f'{self.user} conectado a Club Atlético Independiente')
         
         await self.change_presence(
             activity=discord.CustomActivity(
@@ -99,7 +103,7 @@ class DiabloRobot(commands.Bot):
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send("No toqués")
         else:
-            print(f"Error de comando: {error}")
+            logger.error(f"Error de comando '{ctx.command}': {error}", exc_info=error)
             await ctx.send("Que rompimooo")
 
 
@@ -122,5 +126,4 @@ class DiabloRobot(commands.Bot):
     # TODO Greet new user and give instructive
     async def on_member_join(self, member):
         return
-    
-    
+

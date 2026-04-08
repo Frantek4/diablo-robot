@@ -1,14 +1,19 @@
 import asyncio
+import logging
 import aiohttp
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 import discord
 from config.settings import settings
 
+logger = logging.getLogger(__name__)
+
+
 class LiveMatchScheduler(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_trackers = {} # {match_id: {seen_events: set(), last_status: int}}
+        self.active_trackers = {}
+        self._tracking_tasks: set = set()  # Mantener referencias a las tasks
         self.api_url = "https://api.promiedos.com.ar/gamecenter/"
         self.headers = {'User-Agent': settings.USER_AGENT}
 
@@ -31,12 +36,14 @@ class LiveMatchScheduler(commands.Cog):
 
         if timedelta(minutes=-180) <= time_to_match <= timedelta(minutes=15):
             if next_match.id not in self.active_trackers:
-                asyncio.create_task(self.track_match_live(next_match.id))
+                task = asyncio.create_task(self.track_match_live(next_match.id))
+                self._tracking_tasks.add(task)
+                task.add_done_callback(self._tracking_tasks.discard)
 
     async def track_match_live(self, match_id: str):
         """Polling cada 30 segundos para un partido específico"""
         self.active_trackers[match_id] = {"seen_events": set(), "lineups_sent": False}
-        print(f"Relator: Iniciando seguimiento en vivo para el partido {match_id}")
+        logger.info(f"Relator: Iniciando seguimiento en vivo para el partido {match_id}")
         
         async with aiohttp.ClientSession() as session:
             while True:
@@ -57,14 +64,16 @@ class LiveMatchScheduler(commands.Cog):
 
                         await self._process_events(match_id, game)
 
+                        # Solución 3: Validar que el partido realmente terminó y no está en penales
                         if status_enum == 3 and "penales" not in status_name:
                             final_score = f"{game['teams'][0]['name']} {int(game['scores'][0])} - {int(game['scores'][1])} {game['teams'][1]['name']}"
                             await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
+                            logger.info(f"Relator: Partido {match_id} finalizado. {final_score}")
                             del self.active_trackers[match_id]
                             break
 
                 except Exception as e:
-                    print(f"Error en el relato en vivo ({match_id}): {e}")
+                    logger.error(f"Error en el relato en vivo ({match_id}): {e}", exc_info=True)
                 
                 await asyncio.sleep(30)
 

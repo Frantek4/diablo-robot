@@ -1,6 +1,9 @@
+import logging
 import discord
 from config.settings import settings
 from models.news_source import NewsSource
+
+logger = logging.getLogger(__name__)
 
 class Messager:
 
@@ -34,7 +37,7 @@ class Messager:
             missing_channels.append(settings.FOOTBALL_FORUM_ID)
 
         if missing_channels:
-            raise RuntimeError(f"Canales no encontrados: {', '.join(missing_channels)}. Revisá las configuraciones.")
+            raise RuntimeError(f"Canales no encontrados: {', '.join(str(c) for c in missing_channels)}. Revisá las configuraciones.")
 
     async def commentator_update(self, msg: str, embed: discord.Embed = None):
         """Envía una actualización sobre el partido en vivo"""
@@ -87,7 +90,7 @@ class Messager:
         return message
     
     async def log(self, msg: str):
-        print(msg)
+        logger.info(msg)
         if len(msg) > 2000:
             msg = msg[:1997] + "..."
         await self.devil_robot_channel.send(msg)
