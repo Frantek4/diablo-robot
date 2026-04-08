@@ -1,6 +1,7 @@
 from tinydb import TinyDB, Query
 from datetime import datetime
 from typing import List, Optional
+from config.settings import settings
 from models.fixture import Fixture
 
 class FixtureDAO:
@@ -13,7 +14,7 @@ class FixtureDAO:
         return self.table.insert(fixture.to_dict())
 
     def get_next_match(self) -> Optional[Fixture]:
-        now = datetime.now().isoformat()
+        now = datetime.now(settings.TIMEZONE).isoformat()
         
         results = self.table.search(
             (self.query.status == 'scheduled') & 
