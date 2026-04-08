@@ -1,7 +1,13 @@
 import asyncio
+import logging
 from bot.client import DiabloRobot
 from config.settings import settings
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 def validate() -> bool:
@@ -15,16 +21,19 @@ def validate() -> bool:
 
     for key in required_keys:
         if not getattr(settings, key, None):
-            print(f"{key} no encontrado en las variables de entorno")
+            logger.error(f"Variable de entorno requerida no encontrada: {key}")
             passed = False
-    
-    return passed
 
+    if passed:
+        logger.info("Todas las variables de entorno validadas correctamente")
+
+    return passed
 
 
 async def main():
     """Main entry point for the bot"""
     if not validate():
+        logger.critical("Validación fallida. Abortando inicio del bot.")
         return
     bot = DiabloRobot()
 
@@ -32,11 +41,10 @@ async def main():
         await bot.start(settings.DISCORD_TOKEN)
 
 
-
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Apagando bot manualmente")
+        logger.info("Apagando bot manualmente (KeyboardInterrupt)")
     except Exception as e:
-        print(f"El bot se rompió por un error: {e}")
+        logger.critical(f"El bot se rompió por un error inesperado: {e}", exc_info=True)

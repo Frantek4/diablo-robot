@@ -84,7 +84,7 @@ class Fixture:
             if tv == "No anunciado": tv = None
 
             match_dt = datetime.strptime(date_match.group(1), "%d/%m/%Y %H:%M")
-            match_date = settings.TIMEZONE.localize(match_dt)
+            match_date = match_dt.replace(tzinfo=settings.TIMEZONE)
 
             return cls(
                 home_team=teams_match.group(1).strip(),

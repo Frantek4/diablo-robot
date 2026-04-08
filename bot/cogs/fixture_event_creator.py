@@ -20,7 +20,7 @@ class FixtureEventCreator(commands.Cog):
             url, image_url, channel_id = team.value
             guild = self.bot.get_guild(settings.GUILD_ID)
             
-            fixture: Fixture = scrape_next_match(url)
+            fixture: Fixture = await scrape_next_match(url)
             
             if not fixture:
                 return

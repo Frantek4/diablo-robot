@@ -1,46 +1,67 @@
 import json
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 from datetime import datetime
 import re
-import pytz
+from zoneinfo import ZoneInfo
 from config.settings import settings
 from models.fixture import Fixture
 
-def scrape_next_match(team_url: str) -> Fixture | None:
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+
+async def scrape_next_match(team_url: str) -> Fixture | None:
     """Scrapes the next match information from Promiedos website"""
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    team_html = requests.get(team_url, headers=headers)
-    team_html.raise_for_status()
-    
-    team_soup = BeautifulSoup(team_html.content, 'html.parser')
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        # Primera request: página del equipo
+        async with session.get(team_url) as response:
+            response.raise_for_status()
+            team_content = await response.read()
 
-    match_url = None
+        team_soup = BeautifulSoup(team_content, 'html.parser')
 
+        match_url = _extract_match_url(team_soup)
+        if match_url is None:
+            return None
+
+        # Segunda request: página del partido
+        async with session.get(match_url) as response:
+            response.raise_for_status()
+            match_content = await response.read()
+
+    match_soup = BeautifulSoup(match_content, 'html.parser')
+    return _parse_match(match_soup)
+
+
+def _extract_match_url(team_soup: BeautifulSoup) -> str | None:
+    """Extrae la URL del próximo partido desde los scripts de la página del equipo"""
     scripts = team_soup.find_all('script')
     for script in scripts:
-        if script.string:
-            try:
-                data = json.loads(script.string)
-                games = data.get("props", {}).get("pageProps", {}).get("data", {}).get("games", {}).get("next", {}).get("rows", [])
-                if games:
-                    game_data = games[0] 
-                    game = game_data.get("game", {})
-                    url_name = game.get("url_name")
-                    game_id = game.get("id")
-                    if url_name and game_id:
-                         match_url = f"https://www.promiedos.com.ar/game/{url_name}/{game_id}"
-            except json.JSONDecodeError:
-                continue
+        if not script.string:
+            continue
+        try:
+            data = json.loads(script.string)
+            games = (
+                data.get("props", {})
+                .get("pageProps", {})
+                .get("data", {})
+                .get("games", {})
+                .get("next", {})
+                .get("rows", [])
+            )
+            if games:
+                game = games[0].get("game", {})
+                url_name = game.get("url_name")
+                game_id = game.get("id")
+                if url_name and game_id:
+                    return f"https://www.promiedos.com.ar/game/{url_name}/{game_id}"
+        except (json.JSONDecodeError, AttributeError):
+            continue
+    return None
 
-    if match_url is None:
-        return None
-    
-    match_html = requests.get(match_url, headers=headers)
-    match_html.raise_for_status()
 
-    match_soup = BeautifulSoup(match_html.content, 'html.parser')
-
+def _parse_match(match_soup: BeautifulSoup) -> Fixture | None:
+    """Parsea la página del partido y devuelve un Fixture"""
     home_team = "A confirmar"
     away_team = "A confirmar"
     competition = "Competición"
@@ -48,56 +69,38 @@ def scrape_next_match(team_url: str) -> Fixture | None:
     referee = None
     tv_channels = None
 
-    meta_description_tag = match_soup.find('meta', attrs={'name': 'description'})
-    if meta_description_tag:
-        description_content = meta_description_tag.get('content', '')
-        match = re.search(r"^(.*?)\s+vs\.?\s+(.*?)\s+en\s+([^\.]+)\.", description_content)
-        if match:
-            home_team = match.group(1).strip()
-            away_team = match.group(2).strip()
-            competition = match.group(3).strip()
-    
-    time_pattern = r'"start_time":"(\d{2}-\d{2}-\d{4} \d{2}:\d{2})"'
-    match = re.search(time_pattern, str(match_soup))
+    # Equipos y competición desde meta description
+    meta_tag = match_soup.find('meta', attrs={'name': 'description'})
+    if meta_tag:
+        description = meta_tag.get('content', '')
+        teams_match = re.search(r"^(.*?)\s+vs\.?\s+(.*?)\s+en\s+([^\.]+)\.", description)
+        if teams_match:
+            home_team = teams_match.group(1).strip()
+            away_team = teams_match.group(2).strip()
+            competition = teams_match.group(3).strip()
 
-    start_time_str = match.group(1)
+    # Fecha y hora
+    soup_str = str(match_soup)
+    time_match = re.search(r'"start_time":"(\d{2}-\d{2}-\d{4} \d{2}:\d{2})"', soup_str)
+    if time_match is None:
+        return None
+
+    start_time_str = time_match.group(1)
     match_datetime = datetime.strptime(start_time_str, "%d-%m-%Y %H:%M")
-    
-    if match_datetime > datetime.today():
-        match_datetime = match_datetime.replace(year=datetime.now(settings.TIMEZONE).year)
+
+    now = datetime.now(settings.TIMEZONE)
+
+    if match_datetime.replace(year=now.year) > now.replace(tzinfo=None):
+        match_datetime = match_datetime.replace(year=now.year)
     else:
-        match_datetime = match_datetime.replace(year=datetime.now(settings.TIMEZONE).year + 1)
+        match_datetime = match_datetime.replace(year=now.year + 1)
 
+    match_date = match_datetime.replace(tzinfo=settings.TIMEZONE)
 
-    tz = settings.TIMEZONE
-    match_date = tz.localize(match_datetime)
-
-    stadium_match = re.search(r'Estadio\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
-    if stadium_match:
-        potential_stadium = stadium_match.group(1).strip()
-        if potential_stadium and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_stadium):
-            try:
-                venue = potential_stadium.split('"')[4]
-            except IndexError:
-                venue = potential_stadium
-
-    referee_match = re.search(r'Árbitro\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
-    if referee_match:
-        potential_referee = referee_match.group(1).strip()
-        if potential_referee and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_referee):
-            try:
-                referee = potential_referee.split('"')[4]
-            except IndexError:
-                referee = potential_referee
-
-    tv_match = re.search(r'Arg TV\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)', str(match_soup), re.DOTALL)
-    if tv_match:
-        potential_tv = tv_match.group(1).strip()
-        if potential_tv and not re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential_tv):
-            try:
-                tv_channels = potential_tv.split('"')[4]
-            except IndexError:
-                tv_channels = potential_tv
+    # Datos adicionales
+    venue = _extract_field(soup_str, r'Estadio')
+    referee = _extract_field(soup_str, r'Árbitro')
+    tv_channels = _extract_field(soup_str, r'Arg TV')
 
     return Fixture(
         home_team=home_team,
@@ -108,3 +111,20 @@ def scrape_next_match(team_url: str) -> Fixture | None:
         referee=referee,
         tv_channels=tv_channels
     )
+
+
+def _extract_field(soup_str: str, label: str) -> str | None:
+    """Extrae un campo (Estadio, Árbitro, Arg TV) del HTML del partido"""
+    pattern = rf'{label}\s*(.*?)(?=\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:|\s*$)'
+    match = re.search(pattern, soup_str, re.DOTALL)
+    if not match:
+        return None
+
+    potential = match.group(1).strip()
+    if not potential or re.match(r'^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]*\s*:$', potential):
+        return None
+
+    try:
+        return potential.split('"')[4]
+    except IndexError:
+        return potential
