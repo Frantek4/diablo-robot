@@ -2,6 +2,7 @@ from discord.ext import commands, tasks
 
 from integrations.ole import OleScraper
 from integrations.tyc import TycSportsScraper
+from integrations.twitter import Twitter
 from integrations.youtube import YouTube
 
 
@@ -10,6 +11,7 @@ class NewsCheckScheduler(commands.Cog):
         self.bot = bot
         self.ole_scraper = OleScraper(bot)
         self.tyc_scraper = TycSportsScraper(bot)
+        self.twitter = Twitter(bot)
         self.youtube = YouTube(bot)
 
 
@@ -28,6 +30,7 @@ class NewsCheckScheduler(commands.Cog):
         try:
             await self.ole_scraper.scrape_news()
             await self.tyc_scraper.scrape_news()
+            await self.twitter.check_rss_notifications()
             await self.youtube.check_rss_notifications()
 
         except Exception as e:

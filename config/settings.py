@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ROBOT_DEVIL_TEXT_CHANNEL_ID: int
     FOOTBALL_FORUM_ID: int
     USER_AGENT: str
+    TWITTER_RSS_BRIDGE_URL: str = "https://nitter.net"
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod

@@ -49,6 +49,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.nuevo_juego')
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
+        await self.load_extension('bot.commands.nuevo_twitter')
         
         # Scheduled
         await self.load_extension('bot.scheduled.fixture_check')
