@@ -1,7 +1,8 @@
 from zoneinfo import ZoneInfo
 
 from discord.ui import View, Button
-from discord import ButtonStyle, datetime
+from discord import ButtonStyle
+from datetime import datetime
 
 from config.settings import settings
 

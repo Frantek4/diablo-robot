@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     TERMOS_VOICE_CHANNEL_ID: int
     GENERAL_TEXT_CHANNEL_ID: int
     ANNOUNCEMENTS_TEXT_CHANNEL_ID: int
+    COMMENTATOR_TEXT_CHANNEL_ID: int
     CLUB_TEXT_CHANNEL_ID: int
     PRESS_TEXT_CHANNEL_ID: int
     GAMES_TEXT_CHANNEL_ID: int
@@ -35,6 +36,8 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         arbitrary_types_allowed = True
+        case_sensitive=False
+        extra="ignore"
 
 
 settings = Settings()
