@@ -2,9 +2,11 @@ import logging
 import discord
 from discord.ext import commands
 from bot.scheduled.fixture_check import FixtureCheckScheduler
+from bot.scheduled.live_match_scheduler import LiveMatchScheduler
 from bot.scheduled.news_check import NewsCheckScheduler
 from bot.config.messager import Messager, init_messager
 from config.settings import settings
+from data_access.fixtures import FixtureDAO
 from data_access.games import GameDAO
 from data_access.influencers import InfluencerDAO
 from data_access.news import NewsDAO
@@ -34,6 +36,7 @@ class DiabloRobot(commands.Bot):
         self.news_dao = NewsDAO()
         self.games_dao = GameDAO()
         self.influencer_dao = InfluencerDAO()
+        self.fixture_dao = FixtureDAO()
     
 
 
@@ -53,6 +56,7 @@ class DiabloRobot(commands.Bot):
         
         # Scheduled
         await self.load_extension('bot.scheduled.fixture_check')
+        await self.load_extension('bot.scheduled.live_match_scheduler')
         await self.load_extension('bot.scheduled.news_check')
         
         # Listeners
@@ -68,6 +72,9 @@ class DiabloRobot(commands.Bot):
         
         fixture_creator: FixtureCheckScheduler = self.get_cog('FixtureCheckScheduler')
         fixture_creator.start_scheduled_job()
+
+        live_match_scheduler: LiveMatchScheduler = self.get_cog('LiveMatchScheduler')
+        live_match_scheduler.start_scheduled_job()
 
         news_poster: NewsCheckScheduler = self.get_cog('NewsCheckScheduler')
         news_poster.start_scheduled_job()
