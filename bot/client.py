@@ -4,6 +4,8 @@ from discord.ext import commands
 from bot.scheduled.fixture_check import FixtureCheckScheduler
 from bot.scheduled.live_match_scheduler import LiveMatchScheduler
 from bot.scheduled.news_check import NewsCheckScheduler
+from bot.scheduled.twitter_check import TwitterCheckScheduler
+from bot.scheduled.youtube_check import YouTubeCheckScheduler
 from bot.config.messager import Messager, init_messager
 from config.settings import settings
 from data_access.fixtures import FixtureDAO
@@ -58,6 +60,8 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.fixture_check')
         await self.load_extension('bot.scheduled.live_match_scheduler')
         await self.load_extension('bot.scheduled.news_check')
+        await self.load_extension('bot.scheduled.twitter_check')
+        await self.load_extension('bot.scheduled.youtube_check')
         
         # Listeners
         await self.load_extension('bot.listeners.game_role')
@@ -78,6 +82,12 @@ class DiabloRobot(commands.Bot):
 
         news_poster: NewsCheckScheduler = self.get_cog('NewsCheckScheduler')
         news_poster.start_scheduled_job()
+
+        twitter_checker: TwitterCheckScheduler = self.get_cog('TwitterCheckScheduler')
+        twitter_checker.start_scheduled_job()
+
+        youtube_checker: YouTubeCheckScheduler = self.get_cog('YouTubeCheckScheduler')
+        youtube_checker.start_scheduled_job()
 
 
         init_messager(self)
