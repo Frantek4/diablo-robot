@@ -35,9 +35,11 @@ class Twitter:
                         if response.status != 200:
                             logger.warning(f"Failed to fetch {feed_url}: status {response.status}")
                             continue
-
+                        
                         feed_content = await response.text()
                         feed = feedparser.parse(feed_content)
+
+                        logger.info(f"Successfully fetched RSS feed for {influencer_name}: {feed_content}")
 
                         if not feed.entries:
                             logger.info(f"No entries found for {influencer_name}")
