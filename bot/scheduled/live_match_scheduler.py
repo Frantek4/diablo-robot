@@ -8,12 +8,11 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class LiveMatchScheduler(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_trackers = {}
-        self._tracking_tasks: set = set()  # Mantener referencias a las tasks
+        self._tracking_tasks: set = set()
         self.api_url = "https://api.promiedos.com.ar/gamecenter/"
         self.headers = {'User-Agent': settings.USER_AGENT}
 
@@ -26,22 +25,20 @@ class LiveMatchScheduler(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_upcoming_matches(self):
-        """Busca partidos que comiencen pronto o estén en curso para iniciar el tracking"""
         next_match = self.bot.fixture_dao.get_next_match()
-        if not next_match or not next_match.id:
+        if not next_match or not next_match.match_id or not next_match.id:
             return
 
         now = datetime.now(settings.TIMEZONE)
         time_to_match = next_match.match_date - now
 
         if timedelta(minutes=-180) <= time_to_match <= timedelta(minutes=15):
-            if next_match.id not in self.active_trackers:
-                task = asyncio.create_task(self.track_match_live(next_match.id))
+            if next_match.match_id not in self.active_trackers:
+                task = asyncio.create_task(self.track_match_live(next_match.match_id, next_match.id))
                 self._tracking_tasks.add(task)
                 task.add_done_callback(self._tracking_tasks.discard)
 
-    async def track_match_live(self, match_id: str):
-        """Polling cada 30 segundos para un partido específico"""
+    async def track_match_live(self, match_id: str, fixture_id: str):
         self.active_trackers[match_id] = {"seen_events": set(), "lineups_sent": False}
         logger.info(f"Relator: Iniciando seguimiento en vivo para el partido {match_id}")
         
@@ -58,17 +55,23 @@ class LiveMatchScheduler(commands.Cog):
                         status_enum = game.get("status", {}).get("enum", 0)
                         status_name = game.get("status", {}).get("name", "").lower()
                         
-                        if not self.active_trackers[match_id]["lineups_sent"]:
+                        lineups_data = game.get("players", {}).get("lineups", {})
+                        if not self.active_trackers[match_id]["lineups_sent"] and lineups_data:
                             await self._send_lineups(game)
                             self.active_trackers[match_id]["lineups_sent"] = True
 
                         await self._process_events(match_id, game)
 
-                        # Solución 3: Validar que el partido realmente terminó y no está en penales
                         if status_enum == 3 and "penales" not in status_name:
-                            final_score = f"{game['teams'][0]['name']} {int(game['scores'][0])} - {int(game['scores'][1])} {game['teams'][1]['name']}"
+                            score_home = int(game.get('scores', [0, 0])[0] or 0)
+                            score_away = int(game.get('scores', [0, 0])[1] or 0)
+                            final_score = f"{game['teams'][0]['name']} {score_home} - {score_away} {game['teams'][1]['name']}"
+                            
                             await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
                             logger.info(f"Relator: Partido {match_id} finalizado. {final_score}")
+                            
+                            self.bot.fixture_dao.update_score(fixture_id, score_home, score_away, "finished")
+                            
                             del self.active_trackers[match_id]
                             break
 
@@ -78,7 +81,6 @@ class LiveMatchScheduler(commands.Cog):
                 await asyncio.sleep(30)
 
     async def _send_lineups(self, game):
-        """Formatea y envía las formaciones iniciales"""
         embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.blue())
         for team in game.get("players", {}).get("lineups", {}).get("teams", []):
             team_name = game["teams"][team["team_num"]-1]["name"]
@@ -89,22 +91,20 @@ class LiveMatchScheduler(commands.Cog):
         await self.bot.messager.commentator_update(f"Inicio del encuentro en: {venue}", embed=embed)
 
     async def _process_events(self, match_id, game):
-        """Analiza la lista de eventos y notifica los nuevos"""
         teams = game.get("teams", [])
-        # Las etapas son "Entretiempo", "Fin de los 90", etc.
         for stage in game.get("events", []):
             stage_name = stage.get("name")
             
-            # Notificar inicio/fin de etapas
             stage_key = f"stage_{stage_name}"
             if stage_key not in self.active_trackers[match_id]["seen_events"]:
-                await self.bot.messager.commentator_update(f"{stage_name}. Marcador: {int(stage['scores'][0])} - {int(stage['scores'][1])}")
+                stage_score_home = int(stage.get('scores', [0, 0])[0] or 0)
+                stage_score_away = int(stage.get('scores', [0, 0])[1] or 0)
+                await self.bot.messager.commentator_update(f"{stage_name}. Marcador: {stage_score_home} - {stage_score_away}")
                 self.active_trackers[match_id]["seen_events"].add(stage_key)
 
             for row in stage.get("rows", []):
                 time = row.get("time")
                 for event in row.get("events", []):
-                    # Crear un ID único para el evento para no repetir
                     event_type = event.get("type")
                     texts = "-".join(event.get("texts", []))
                     event_id = f"{time}_{event_type}_{texts}"
@@ -122,24 +122,23 @@ class LiveMatchScheduler(commands.Cog):
                     self.active_trackers[match_id]["seen_events"].add(event_id)
 
     def _format_event(self, time, e_type, texts, team_name):
-        """Traduce los tipos de eventos de Promiedos a texto amigable"""
         player = texts[0] if len(texts) > 0 else "Alguien"
         assist = f" (Asistencia: {texts[1]})" if len(texts) > 1 else ""
         
-        if e_type == 1: # GOL
+        if e_type == 1:
             return f"Gol de {team_name}: {player}{assist} ({time}')."
-        elif e_type == 4: # AMARILLA
+        elif e_type == 4:
             return f"Tarjeta amarilla: {player} ({team_name}) - {time}'."
-        elif e_type == 5: # ROJA
+        elif e_type == 5:
             return f"Tarjeta roja: {player} ({team_name}) - {time}'."
-        elif e_type == 15: # CAMBIO
+        elif e_type == 15:
             out_player = texts[1] if len(texts) > 1 else "N/A"
             return f"Cambio en {team_name}: Entra {player}, sale {out_player} ({time}')."
-        elif e_type == 2: # GOL EN CONTRA
+        elif e_type == 2:
             return f"Gol en contra ({team_name}): {player} ({time}')."
-        elif e_type == 7: # PENAL GOL
+        elif e_type == 7:
             return f"Gol de penal ({team_name}): {player} ({time}')."
-        elif e_type == 8: # PENAL ERRADO
+        elif e_type == 8:
             return f"Penal fallado ({team_name}): {player} ({time}')."
         
         return None
