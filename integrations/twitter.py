@@ -21,25 +21,31 @@ class Twitter:
         """Check RSS feeds for new tweets from registered influencers"""
         twitter_influencers: List[InfluencerModel] = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
 
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+
         async with aiohttp.ClientSession() as session:
             for influencer in twitter_influencers:
                 try:
-                    influencer_name = influencer.get('name', '')
-                    if not influencer_name:
-                        continue
+                    influencer_name = influencer.name
                     
                     feed_url = f"{self.rss_bridge_url}/{influencer_name}/rss"
                     logger.info(f"Fetching Twitter RSS: {feed_url}")
                     
-                    async with session.get(feed_url, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                    async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
                         if response.status != 200:
                             logger.warning(f"Failed to fetch {feed_url}: status {response.status}")
                             continue
                         
-                        feed_content = await response.text()
+                        # Usar response.read() para obtener el contenido como bytes, luego decodificar
+                        feed_content_bytes = await response.read()
+                        feed_content = feed_content_bytes.decode('utf-8', errors='replace')
+                        
+                        logger.debug(f"Raw response length: {len(feed_content)} bytes")
                         feed = feedparser.parse(feed_content)
 
-                        logger.info(f"Successfully fetched RSS feed for {influencer_name}: {feed_content}")
+                        logger.info(f"Successfully fetched RSS feed for {influencer_name}: {len(feed.entries)} entries found")
 
                         if not feed.entries:
                             logger.info(f"No entries found for {influencer_name}")
