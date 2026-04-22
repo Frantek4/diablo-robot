@@ -49,8 +49,13 @@ class FixtureEventCreator(commands.Cog):
 
             if existing_event:
                 existing_fixture = Fixture.from_description(existing_event.description)   
-                if existing_fixture and existing_fixture == fixture:
-                    return
+                
+                if existing_fixture:
+                    existing_fixture.id = fixture.id
+                    existing_fixture.match_id = fixture.match_id
+                    
+                    if existing_fixture == fixture:
+                        return
                 
                 await existing_event.edit(
                     start_time=start_time,
