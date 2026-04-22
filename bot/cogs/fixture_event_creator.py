@@ -30,42 +30,53 @@ class FixtureEventCreator(commands.Cog):
                 return
             
             event_name = f"{fixture.home_team} vs {fixture.away_team}"
-            
             start_time = fixture.match_date - timedelta(minutes=15)
             end_time = start_time + timedelta(hours=2, minutes=15)
+            channel_obj = discord.utils.get(guild.voice_channels, id=channel_id)
+
+            existing_data = self.bot.fixture_dao.collection.find_one({"match_id": fixture.match_id})
+            existing_fixture = None
+            
+            if existing_data:
+                existing_fixture = Fixture.from_dict(existing_data, doc_id=str(existing_data['_id']))
+                fixture.id = existing_fixture.id
+                fixture.status = existing_fixture.status
+                fixture.home_score = existing_fixture.home_score
+                fixture.away_score = existing_fixture.away_score
+            
+            existing_events = await guild.fetch_scheduled_events()
+            existing_event = discord.utils.get(existing_events, name=event_name)
+
+            if existing_fixture:
+                changes = existing_fixture.get_changes(fixture)
+                
+                if not changes:
+                    if existing_event:
+                        return
+                else:
+                    self.bot.fixture_dao.upsert(fixture)
+                    
+                    if existing_event:
+                        await existing_event.edit(
+                            start_time=start_time,
+                            end_time=end_time,
+                            channel=channel_obj,
+                            description=fixture.to_description()
+                        )
+                        view = EventRedirectView(settings.GUILD_ID, existing_event.id, start_time)
+                        await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{changes}", view)
+                        return
             
             fixture_id = self.bot.fixture_dao.upsert(fixture)
             fixture.id = fixture_id
-            
-            existing_events = await guild.fetch_scheduled_events()
-            existing_event = None
-            
-            for event in existing_events:
-                if event.name == event_name:
-                    existing_event = event
-                    break
-            
-            channel_obj = discord.utils.get(guild.voice_channels, id=channel_id)
 
             if existing_event:
-                existing_fixture = Fixture.from_description(existing_event.description)   
-                
-                if existing_fixture:
-                    existing_fixture.id = fixture.id
-                    existing_fixture.match_id = fixture.match_id
-                    
-                    if existing_fixture == fixture:
-                        return
-                
                 await existing_event.edit(
                     start_time=start_time,
                     end_time=end_time,
                     channel=channel_obj,
                     description=fixture.to_description()
                 )
-                view = EventRedirectView(settings.GUILD_ID, event.id, start_time)
-                changes = existing_fixture.get_changes(fixture) if existing_fixture else "Se actualizaron los detalles del partido."
-                await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{changes}", view)
                 return
             
             try:
