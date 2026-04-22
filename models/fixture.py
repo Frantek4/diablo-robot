@@ -119,5 +119,5 @@ class Fixture:
             changes.append(f"📺: {self.tv_channels or 'No anunciado'} -> {other.tv_channels or 'No anunciado'}")
 
         if not changes:
-            return "Actualización de información del partido."
+            return None
         return "\n".join(changes)
