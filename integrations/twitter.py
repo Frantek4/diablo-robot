@@ -28,9 +28,8 @@ class Twitter:
         async with aiohttp.ClientSession() as session:
             for influencer in twitter_influencers:
                 try:
-                    influencer_name = influencer.name
-                    
-                    feed_url = f"{self.rss_bridge_url}/{influencer_name}/rss"
+
+                    feed_url = f"{self.rss_bridge_url}/{influencer['name']}/rss"
                     logger.info(f"Fetching Twitter RSS: {feed_url}")
                     
                     async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
