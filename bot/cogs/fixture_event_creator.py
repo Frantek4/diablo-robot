@@ -29,7 +29,10 @@ class FixtureEventCreator(commands.Cog):
             
             if next_week < fixture.match_date:
                 return
-                        
+            
+            fixture_id = self.bot.fixture_dao.insert(fixture)
+            fixture.id = fixture_id
+            
             event_name = f"{fixture.home_team} vs {fixture.away_team}"
             
             start_time = fixture.match_date - timedelta(minutes=15)

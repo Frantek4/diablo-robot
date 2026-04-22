@@ -1,17 +1,15 @@
-from tinydb import TinyDB, Query
+from config.database import db
 
 class NewsDAO:
     def __init__(self):
-        self.table = TinyDB('database.json').table('news')
+        self.collection = db['news']
 
     def insert(self, url: str) -> bool:
-        self.table.insert({'url': url})
+        self.collection.insert_one({'url': url})
         return True
 
     def exists(self, url: str) -> bool:
-        query = Query()
-        result = self.table.search(query.url == url)
-        return len(result) > 0
+        return self.collection.count_documents({"url": url}, limit=1) > 0
     
     @staticmethod
     def normalize_url(domain, url):

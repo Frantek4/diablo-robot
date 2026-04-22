@@ -1,49 +1,51 @@
-from tinydb import TinyDB, Query
 from datetime import datetime
 from typing import List, Optional
+from bson.objectid import ObjectId
 from config.settings import settings
 from models.fixture import Fixture
+from config.database import db
 
 class FixtureDAO:
     def __init__(self):
-        self.db = TinyDB('database.json')
-        self.table = self.db.table('fixtures')
-        self.query = Query()
+        self.collection = db['fixtures']
 
-    def insert(self, fixture: Fixture) -> int:
-        return self.table.insert(fixture.to_dict())
+    def insert(self, fixture: Fixture) -> str:
+        result = self.collection.insert_one(fixture.to_dict())
+        return str(result.inserted_id)
 
     def get_next_match(self) -> Optional[Fixture]:
         now = datetime.now(settings.TIMEZONE).isoformat()
         
-        results = self.table.search(
-            (self.query.status == 'scheduled') & 
-            (self.query.match_date > now)
-        )
+        result = self.collection.find(
+            {
+                "status": "scheduled",
+                "match_date": {"$gt": now}
+            }
+        ).sort("match_date", 1).limit(1)
         
-        if not results:
+        next_match_data = next(result, None)
+        
+        if not next_match_data:
             return None
             
-        results.sort(key=lambda x: x['match_date'])
-        next_match_data = results[0]
-        
-        return Fixture.from_dict(next_match_data, doc_id=next_match_data.doc_id)
+        return Fixture.from_dict(next_match_data, doc_id=str(next_match_data['_id']))
 
-    def update_score(self, fixture_id: int, home_score: int, away_score: int, status: str = "finished"):
-        self.table.update({
-            'home_score': home_score,
-            'away_score': away_score,
-            'status': status
-        }, doc_ids=[fixture_id])
+    def update_score(self, fixture_id: str, home_score: int, away_score: int, status: str = "finished"):
+        self.collection.update_one(
+            {"_id": ObjectId(fixture_id)},
+            {"$set": {
+                'home_score': home_score,
+                'away_score': away_score,
+                'status': status
+            }}
+        )
 
-    def get_fixture_by_id(self, fixture_id: int) -> Optional[Fixture]:
-        result = self.table.get(doc_id=fixture_id)
+    def get_fixture_by_id(self, fixture_id: str) -> Optional[Fixture]:
+        result = self.collection.find_one({"_id": ObjectId(fixture_id)})
         if result:
-            return Fixture.from_dict(result, doc_id=result.doc_id)
+            return Fixture.from_dict(result, doc_id=str(result['_id']))
         return None
 
     def get_fixtures_by_competition(self, competition: str) -> List[Fixture]:
-        results = self.table.search(self.query.competition == competition)
-        results.sort(key=lambda x: x['match_date'])
-        
-        return [Fixture.from_dict(item, doc_id=item.doc_id) for item in results]
+        cursor = self.collection.find({"competition": competition}).sort("match_date", 1)
+        return [Fixture.from_dict(item, doc_id=str(item['_id'])) for item in cursor]

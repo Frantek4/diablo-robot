@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     FOOTBALL_FORUM_ID: int
     USER_AGENT: str
     TWITTER_RSS_BRIDGE_URL: str = "http://nitter.net"
+    DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
+    DATABASE_USERNAME: str
+    DATABASE_PASSWORD: str
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod

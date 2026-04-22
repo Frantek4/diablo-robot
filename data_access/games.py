@@ -1,41 +1,26 @@
-from tinydb import TinyDB, Query
 from typing import List
-
 from models.videogame import GameChannel
+from config.database import db
 
 class GameDAO:
     def __init__(self):
-        self.db = TinyDB('database.json')
-        self.games_table = self.db.table('games')
-        self.GameQuery = Query()
-    
-
+        self.collection = db['games']
 
     def create_game(self, game: GameChannel) -> bool:
-        self.games_table.insert(game.to_dict())
+        self.collection.insert_one(game.to_dict())
         return True
-    
-
 
     def get_game_by_name(self, game_name: str) -> GameChannel | None:
-        result = self.games_table.get(self.GameQuery.game_name == game_name)
+        result = self.collection.find_one({"game_name": game_name})
         return GameChannel.from_dict(result) if result else None
-    
-
 
     def get_game_by_message_id(self, message_id: int) -> GameChannel | None:
-        result = self.games_table.get(self.GameQuery.message_id == message_id)
+        result = self.collection.find_one({"message_id": message_id})
         return GameChannel.from_dict(result) if result else None
-    
-
 
     def get_all_games(self) -> List[GameChannel]:
-        results = self.games_table.all()
-        return [GameChannel.from_dict(result) for result in results]
-    
-
+        cursor = self.collection.find()
+        return [GameChannel.from_dict(result) for result in cursor]
 
     def game_exists(self, game_name: str) -> bool:
-
-        return self.get_game_by_name(game_name) is not None
-    
+        return self.collection.count_documents({"game_name": game_name}, limit=1) > 0
