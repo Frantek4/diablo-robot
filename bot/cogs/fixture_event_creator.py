@@ -8,10 +8,9 @@ from integrations.promiedos import scrape_next_match
 from config.settings import settings
 from datetime import datetime, timedelta
 
-
 class FixtureEventCreator(commands.Cog):
 
-    def __init__(self,bot):
+    def __init__(self, bot):
         self.bot = bot
         self.event_lifecycle_manager = EventLifecycleManager(bot)
 
@@ -35,6 +34,9 @@ class FixtureEventCreator(commands.Cog):
             start_time = fixture.match_date - timedelta(minutes=15)
             end_time = start_time + timedelta(hours=2, minutes=15)
             
+            fixture_id = self.bot.fixture_dao.upsert(fixture)
+            fixture.id = fixture_id
+            
             existing_events = await guild.fetch_scheduled_events()
             existing_event = None
             
@@ -42,13 +44,9 @@ class FixtureEventCreator(commands.Cog):
                 if event.name == event_name:
                     existing_event = event
                     break
-
-            fixture_id = self.bot.fixture_dao.insert(fixture)
-            fixture.id = fixture_id
             
             channel_obj = discord.utils.get(guild.voice_channels, id=channel_id)
- 
-            
+
             if existing_event:
                 existing_fixture = Fixture.from_description(existing_event.description)   
                 if existing_fixture and existing_fixture == fixture:
@@ -60,7 +58,7 @@ class FixtureEventCreator(commands.Cog):
                     channel=channel_obj,
                     description=fixture.to_description()
                 )
-                view = EventRedirectView(settings.GUILD_ID,event.id,start_time)
+                view = EventRedirectView(settings.GUILD_ID, event.id, start_time)
                 changes = existing_fixture.get_changes(fixture) if existing_fixture else "Se actualizaron los detalles del partido."
                 await self.bot.messager.announce_interactive(f"Cambios en **{event_name}**:\n{changes}", view)
                 return
@@ -85,7 +83,7 @@ class FixtureEventCreator(commands.Cog):
 
             self.event_lifecycle_manager.schedule_event_lifecycle(event)
 
-            view = EventRedirectView(settings.GUILD_ID,event.id,start_time)
+            view = EventRedirectView(settings.GUILD_ID, event.id, start_time)
             await self.bot.messager.announce_interactive(f"** *¡Nuevo evento!* **\n\n{fixture.to_description()}", view)
             
         except Exception as e:

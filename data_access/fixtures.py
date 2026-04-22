@@ -49,3 +49,21 @@ class FixtureDAO:
     def get_fixtures_by_competition(self, competition: str) -> List[Fixture]:
         cursor = self.collection.find({"competition": competition}).sort("match_date", 1)
         return [Fixture.from_dict(item, doc_id=str(item['_id'])) for item in cursor]
+    
+    def upsert(self, fixture: Fixture) -> str:
+        fixture_dict = fixture.to_dict()
+        
+        if 'id' in fixture_dict:
+            del fixture_dict['id']
+            
+        result = self.collection.update_one(
+            {"match_id": fixture.match_id},
+            {"$set": fixture_dict},
+            upsert=True
+        )
+        
+        if result.upserted_id:
+            return str(result.upserted_id)
+            
+        existing = self.collection.find_one({"match_id": fixture.match_id})
+        return str(existing['_id'])

@@ -6,6 +6,7 @@ from config.settings import settings
 
 @dataclass
 class Fixture:
+    match_id: str
     home_team: str
     away_team: str
     match_date: datetime
@@ -29,12 +30,14 @@ class Fixture:
             "away_score": self.away_score,
             "status": self.status,
             "referee": self.referee,
-            "tv_channels": self.tv_channels
+            "tv_channels": self.tv_channels,
+            "match_id": self.match_id
         }
 
     @classmethod
     def from_dict(cls, data: dict, doc_id: str = None):
         return cls(
+            match_id=data["match_id"],
             home_team=data["home_team"],
             away_team=data["away_team"],
             match_date=datetime.fromisoformat(data["match_date"]),
