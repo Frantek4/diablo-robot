@@ -21,12 +21,6 @@ class Twitter:
         """Check RSS feeds for new tweets from registered influencers"""
         twitter_influencers: List[InfluencerModel] = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
 
-        if not twitter_influencers:
-            logger.info("No Twitter influencers found")
-            return
-
-        logger.info(f"Checking {len(twitter_influencers)} Twitter influencers")
-
         async with aiohttp.ClientSession() as session:
             for influencer in twitter_influencers:
                 try:
