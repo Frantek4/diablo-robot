@@ -2,17 +2,29 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timedelta
+from html.parser import HTMLParser
 from typing import List
+from urllib.parse import unquote
 
 import aiohttp
 import feedparser
-from html.parser import HTMLParser
 
 from config.settings import settings
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
 
 logger = logging.getLogger(__name__)
+
+
+def nitter_pic_to_twimg(url: str) -> str:
+    """Convert a Nitter image proxy URL to its original pbs.twimg.com URL."""
+    match = re.match(r'https?://[^/]+/pic/(.+)', url)
+    if not match:
+        return url
+    path = unquote(match.group(1))
+    if path.startswith(("pbs.twimg.com/", "video.twimg.com/")):
+        return f"https://{path}"
+    return f"https://pbs.twimg.com/{path}"
 
 
 class NitterHTMLParser(HTMLParser):
@@ -41,7 +53,7 @@ class NitterHTMLParser(HTMLParser):
         elif tag == "img":
             src = attrs.get("src", "")
             if src:
-                self.images.append({"src": src, "in_quote": self._in_blockquote})
+                self.images.append({"src": nitter_pic_to_twimg(src), "in_quote": self._in_blockquote})
 
     def handle_endtag(self, tag):
         if tag == "blockquote":
