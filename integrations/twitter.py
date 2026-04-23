@@ -153,7 +153,6 @@ class Twitter:
     async def _process_influencer(self, session, influencer, one_week_ago, headers):
         name = influencer["name"]
         feed_url = f"{self.rss_bridge_url}/{name}/rss"
-        logger.info(f"Fetching Twitter RSS: {feed_url}")
 
         async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
             if response.status != 200:
@@ -164,10 +163,7 @@ class Twitter:
             feed = feedparser.parse(content)
 
         if not feed.entries:
-            logger.info(f"No entries for {name}")
             return
-
-        logger.info(f"Found {len(feed.entries)} entries for {name}")
 
         for entry in feed.entries[:5]:
             parsed = parse_entry(entry, influencer)
@@ -175,14 +171,11 @@ class Twitter:
                 continue
 
             if parsed["published_date"] < one_week_ago:
-                logger.debug(f"Tweet too old: {parsed['published_date']}")
                 continue
 
             if self.bot.news_dao.exists(parsed["url"]):
-                logger.debug(f"Tweet already exists: {parsed['url']}")
                 continue
 
-            logger.info(f"Publishing tweet from {name}: {parsed['title']}")
             await self.bot.messager.news(
                 type=parsed["source"],
                 title=parsed["title"],

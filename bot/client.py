@@ -68,7 +68,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.listeners.event_start_announcer')
         await self.load_extension('bot.listeners.post_match_discussion')
 
-        logger.info("Setup hook completado — Extensiones cargadas")
+        logger.info("Extensiones cargadas")
     
 
 

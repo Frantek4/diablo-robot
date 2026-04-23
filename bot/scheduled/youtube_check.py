@@ -16,17 +16,12 @@ class YouTubeCheckScheduler(commands.Cog):
 
     def start_scheduled_job(self):
         if not self.youtube_scheduled_job.is_running():
-            logger.info("Starting YouTubeCheckScheduler (every 10 minutes)")
             self.youtube_scheduled_job.start()
-        else:
-            logger.info("YouTubeCheckScheduler already running")
 
     @tasks.loop(minutes=10)
     async def youtube_scheduled_job(self):
-        logger.info("YouTubeCheckScheduler: Checking YouTube RSS feeds")
         try:
             await self.youtube.check_rss_notifications()
-            logger.info("YouTube check completed")
         except Exception as e:
             logger.error(f"Error in YouTube check: {str(e)}", exc_info=True)
             await self.bot.messager.log(f"Error escaneando YouTube: {str(e)}")
