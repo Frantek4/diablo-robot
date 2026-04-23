@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     GAMES_TEXT_CHANNEL_ID: int
     ROBOT_DEVIL_TEXT_CHANNEL_ID: int
     FOOTBALL_FORUM_ID: int
+    GAMES_CATEGORY_ID: int
     USER_AGENT: str
     TWITTER_RSS_BRIDGE_URL: str = "http://nitter.net"
     DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
