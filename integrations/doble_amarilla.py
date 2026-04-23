@@ -12,7 +12,7 @@ class DobleAmarillaScraper:
         self.bot = bot
         self.domain = "https://www.dobleamarilla.com.ar"
         self.urls = {
-            "liga-_c58daeec046fa270dcb9eb65a": "Liga",
+            #"liga-_c58daeec046fa270dcb9eb65a": "Liga",
             "rosca_c5990f5953107d82c75d563f0": "Rosca",
             "search?text=independiente": "Independiente",
         }
