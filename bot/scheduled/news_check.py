@@ -1,7 +1,7 @@
 import logging
 from discord.ext import commands, tasks
 
-from integrations.dobleamarilla import DobleAmarillaScraper
+from integrations.doble_amarilla import DobleAmarillaScraper
 from integrations.ole import OleScraper
 from integrations.tyc import TycSportsScraper
 
