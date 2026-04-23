@@ -23,7 +23,7 @@ class YouTube:
         async with aiohttp.ClientSession() as session:
             for influencer in youtube_influencers:
                 try:
-                    feed_url = f"{YouTube.domain}/feeds/videos.xml?channel_id={influencer['id']}"
+                    feed_url = f"{YouTube.domain}/feeds/videos.xml?channel_id={influencer['account_id']}"
                     async with session.get(feed_url, timeout=10) as response:
                         if response.status != 200:
                             continue

@@ -12,6 +12,7 @@ class InfluencerDAO:
             return False
             
         self.collection.insert_one({
+            'account_id': model.account_id,
             'name': model.name,
             'description': model.description,
             'source': model.source.value,

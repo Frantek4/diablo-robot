@@ -20,7 +20,7 @@ class NuevoTwitter(commands.Cog):
                 return
             
             account = InfluencerModel(
-                id=None,
+                account_id=None,
                 name=username,
                 description=description,
                 source=source_enum,

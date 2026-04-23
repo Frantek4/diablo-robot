@@ -9,7 +9,7 @@ class NuevoYouTube(commands.Cog):
         self.bot = bot
 
     @commands.command(name='nuevo_youtube')
-    async def nuevo_influencer(self, ctx, id: str, username: str, description: str, source: str):
+    async def nuevo_influencer(self, ctx, account_id: str, username: str, description: str, source: str):
         
         try:
             source_enum = NewsSource(source.lower())
@@ -20,7 +20,7 @@ class NuevoYouTube(commands.Cog):
                 return
             
             account = InfluencerModel(
-                id=id,
+                account_id=account_id,
                 name=username,
                 description=description,
                 source=source_enum,
