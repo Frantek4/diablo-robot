@@ -90,7 +90,7 @@ class Twitter:
                                 logger.error(f"Error parsing date for {tweet_url}: {str(e)}")
                                 continue
 
-                            title = f"@{influencer_name}"
+                            title = f"{influencer.description} en Twitter"
                             description = entry.get('title', '')
                             if len(description) > 400:
                                 description = description[:400] + "..."
@@ -110,8 +110,8 @@ class Twitter:
                                 description=description,
                                 url=normalized_url,
                                 image_url=image_url,
-                                publisher=f"Twitter/X • {influencer_name}",
-                                color="#000000"
+                                publisher=f"Twitter • {influencer_name}",
+                                color="#00acee"
                             )
                             self.bot.news_dao.insert(normalized_url)
 
