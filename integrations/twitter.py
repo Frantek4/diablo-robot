@@ -1,10 +1,12 @@
 import asyncio
 import logging
-from typing import List
-import aiohttp
-import feedparser
 import re
 from datetime import datetime, timedelta
+from typing import List
+
+import aiohttp
+import feedparser
+from html.parser import HTMLParser
 
 from config.settings import settings
 from models.influencer import InfluencerModel
@@ -12,114 +14,171 @@ from models.social_media import SocialMedia
 
 logger = logging.getLogger(__name__)
 
+
+class NitterHTMLParser(HTMLParser):
+    """Parses Nitter's RSS <description> HTML to extract media and quote info."""
+
+    def __init__(self):
+        super().__init__()
+        self.images = []
+        self.quote_text = None
+        self.quote_author = None
+        self._in_blockquote = False
+        self._in_bold = False
+        self._in_paragraph = False
+        self._paragraph_buffer = []
+        self._bold_buffer = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "blockquote":
+            self._in_blockquote = True
+        elif tag == "b":
+            self._in_bold = True
+        elif tag == "p":
+            self._in_paragraph = True
+            self._paragraph_buffer = []
+        elif tag == "img":
+            src = attrs.get("src", "")
+            if src:
+                self.images.append({"src": src, "in_quote": self._in_blockquote})
+
+    def handle_endtag(self, tag):
+        if tag == "blockquote":
+            self._in_blockquote = False
+        elif tag == "b":
+            if self._in_blockquote and self.quote_author is None:
+                self.quote_author = "".join(self._bold_buffer).strip()
+            self._in_bold = False
+            self._bold_buffer = []
+        elif tag == "p":
+            text = "".join(self._paragraph_buffer).strip()
+            if self._in_blockquote and text and self.quote_text is None:
+                self.quote_text = text
+            self._in_paragraph = False
+            self._paragraph_buffer = []
+
+    def handle_data(self, data):
+        if self._in_bold:
+            self._bold_buffer.append(data)
+        if self._in_paragraph:
+            self._paragraph_buffer.append(data)
+
+    @property
+    def main_image(self):
+        non_quote = [img["src"] for img in self.images if not img["in_quote"]]
+        return non_quote[0] if non_quote else None
+
+    @property
+    def quote_image(self):
+        in_quote = [img["src"] for img in self.images if img["in_quote"]]
+        return in_quote[0] if in_quote else None
+
+
+def nitter_to_x_url(nitter_url: str) -> str | None:
+    match = re.search(r'/(\w+)/status/(\d+)', nitter_url)
+    if not match:
+        return None
+    return f"https://x.com/{match.group(1)}/status/{match.group(2)}"
+
+
+def parse_entry(entry: dict, influencer: dict) -> dict | None:
+    tweet_url = entry.get("link", "")
+    normalized_url = nitter_to_x_url(tweet_url)
+    if not normalized_url:
+        logger.warning(f"Could not parse tweet URL: {tweet_url}")
+        return None
+
+    published_parsed = entry.get("published_parsed")
+    if published_parsed:
+        published_date = datetime(*published_parsed[:6], tzinfo=settings.TIMEZONE)
+    else:
+        published_date = datetime.now(settings.TIMEZONE)
+
+    html_description = entry.get("description", "")
+    parser = NitterHTMLParser()
+    parser.feed(html_description)
+
+    tweet_text = entry.get("title", "")
+    if len(tweet_text) > 400:
+        tweet_text = tweet_text[:400] + "..."
+
+    description_parts = [tweet_text]
+    if parser.quote_author and parser.quote_text:
+        quote_preview = parser.quote_text[:200] + "..." if len(parser.quote_text) > 200 else parser.quote_text
+        description_parts.append(f"\n> **{parser.quote_author}**\n> {quote_preview}")
+
+    return {
+        "url": normalized_url,
+        "published_date": published_date,
+        "title": f"{influencer['description']} en Twitter",
+        "description": "\n".join(description_parts),
+        "image_url": parser.main_image or parser.quote_image,
+        "publisher": f"Twitter • {influencer['name']}",
+        "source": influencer.get("source", "TWITTER"),
+    }
+
+
 class Twitter:
     def __init__(self, bot):
         self.bot = bot
         self.rss_bridge_url = settings.TWITTER_RSS_BRIDGE_URL
 
     async def check_rss_notifications(self):
-        """Check RSS feeds for new tweets from registered influencers"""
-        twitter_influencers: List[InfluencerModel] = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
-
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        influencers: List[InfluencerModel] = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
+        one_week_ago = datetime.now(settings.TIMEZONE) - timedelta(days=7)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
         async with aiohttp.ClientSession() as session:
-            for influencer in twitter_influencers:
+            for influencer in influencers:
                 try:
-                    influencer_name = influencer['name']
-                    
-                    feed_url = f"{self.rss_bridge_url}/{influencer_name}/rss"
-                    logger.info(f"Fetching Twitter RSS: {feed_url}")
-                    
-                    async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
-                        if response.status != 200:
-                            logger.warning(f"Failed to fetch {feed_url}: status {response.status}")
-                            continue
-                        
-                        # Usar response.read() para obtener el contenido como bytes, luego decodificar
-                        feed_content_bytes = await response.read()
-                        feed_content = feed_content_bytes.decode('utf-8', errors='replace')
-                        
-                        logger.debug(f"Raw response length: {len(feed_content)} bytes")
-                        feed = feedparser.parse(feed_content)
-
-                        logger.info(f"Successfully fetched RSS feed for {influencer_name}: {len(feed.entries)} entries found")
-
-                        if not feed.entries:
-                            logger.info(f"No entries found for {influencer_name}")
-                            continue
-
-                        logger.info(f"Found {len(feed.entries)} entries for {influencer_name}")
-                        one_week_ago = datetime.now(settings.TIMEZONE) - timedelta(days=7)
-
-                        for entry in feed.entries[:5]:
-                            tweet_url = entry.get('link', '')
-                            if not tweet_url:
-                                continue
-                            
-                            # Extraer tweet ID y username de la URL de Nitter
-                            # URL: https://nitter.net/elonmusk/status/2046609562778673232#m
-                            status_match = re.search(r'/(\w+)/status/(\d+)', tweet_url)
-                            if status_match:
-                                tweet_username = status_match.group(1)
-                                tweet_id = status_match.group(2)
-                                # URL limpia a x.com
-                                normalized_url = f"https://x.com/{tweet_username}/status/{tweet_id}"
-                            else:
-                                logger.warning(f"Could not parse tweet URL: {tweet_url}")
-                                continue
-
-                            if self.bot.news_dao.exists(normalized_url):
-                                logger.debug(f"Tweet already exists: {normalized_url}")
-                                continue
-
-                            try:
-                                published_parsed = entry.get('published_parsed')
-                                if published_parsed:
-                                    published_date = datetime(*published_parsed[:6], tzinfo=settings.TIMEZONE)
-                                else:
-                                    published_date = datetime.now(settings.TIMEZONE)
-                                    logger.warning(f"No published_parsed for {tweet_url}, using now")
-                                    
-                                if published_date < one_week_ago:
-                                    logger.debug(f"Tweet too old: {published_date}")
-                                    continue
-                            except (ValueError, AttributeError, TypeError) as e:
-                                logger.error(f"Error parsing date for {tweet_url}: {str(e)}")
-                                continue
-
-                            title = f"{influencer['description']} en Twitter"
-                            description = entry.get('title', '')
-                            if len(description) > 400:
-                                description = description[:400] + "..."
-
-                            # Extraer imagen del HTML de la descripción
-                            image_url = None
-                            html_description = entry.get('description', '')
-                            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', html_description)
-                            if img_match:
-                                image_url = img_match.group(1)
-                                logger.debug(f"Found image: {image_url}")
-
-                            logger.info(f"Publishing tweet from {influencer_name}: {title}")
-                            await self.bot.messager.news(
-                                type=influencer.get('source', 'TWITTER'),
-                                title=title,
-                                description=description,
-                                url=normalized_url,
-                                image_url=image_url,
-                                publisher=f"Twitter • {influencer_name}",
-                                color="#00acee"
-                            )
-                            self.bot.news_dao.insert(normalized_url)
-
-                            await asyncio.sleep(1)
-
+                    await self._process_influencer(session, influencer, one_week_ago, headers)
                 except Exception as e:
-                    influencer_name = influencer.get('name', 'unknown') if isinstance(influencer, dict) else str(influencer)
-                    logger.error(f"Error checking Twitter {influencer_name}: {str(e)}", exc_info=True)
-                    continue
-
+                    name = influencer.get("name", "unknown") if isinstance(influencer, dict) else str(influencer)
+                    logger.error(f"Error checking Twitter {name}: {e}", exc_info=True)
                 await asyncio.sleep(2)
+
+    async def _process_influencer(self, session, influencer, one_week_ago, headers):
+        name = influencer["name"]
+        feed_url = f"{self.rss_bridge_url}/{name}/rss"
+        logger.info(f"Fetching Twitter RSS: {feed_url}")
+
+        async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+            if response.status != 200:
+                logger.warning(f"Failed to fetch {feed_url}: status {response.status}")
+                return
+
+            content = (await response.read()).decode("utf-8", errors="replace")
+            feed = feedparser.parse(content)
+
+        if not feed.entries:
+            logger.info(f"No entries for {name}")
+            return
+
+        logger.info(f"Found {len(feed.entries)} entries for {name}")
+
+        for entry in feed.entries[:5]:
+            parsed = parse_entry(entry, influencer)
+            if not parsed:
+                continue
+
+            if parsed["published_date"] < one_week_ago:
+                logger.debug(f"Tweet too old: {parsed['published_date']}")
+                continue
+
+            if self.bot.news_dao.exists(parsed["url"]):
+                logger.debug(f"Tweet already exists: {parsed['url']}")
+                continue
+
+            logger.info(f"Publishing tweet from {name}: {parsed['title']}")
+            await self.bot.messager.news(
+                type=parsed["source"],
+                title=parsed["title"],
+                description=parsed["description"],
+                url=parsed["url"],
+                image_url=parsed["image_url"],
+                publisher=parsed["publisher"],
+                color="#00acee",
+            )
+            self.bot.news_dao.insert(parsed["url"])
+            await asyncio.sleep(1)
