@@ -90,7 +90,7 @@ class Twitter:
                                 logger.error(f"Error parsing date for {tweet_url}: {str(e)}")
                                 continue
 
-                            title = f"{influencer.description} en Twitter"
+                            title = f"{influencer['description']} en Twitter"
                             description = entry.get('title', '')
                             if len(description) > 400:
                                 description = description[:400] + "..."
