@@ -67,6 +67,9 @@ class Messager:
             if publisher:
                 embed.set_footer(text=publisher)
             
+            if isinstance(type, str):
+                type = NewsSource(type)
+            
             if NewsSource.OFFICIAL == type:
                 await self.club_channel.send(embed=embed)
             else:
