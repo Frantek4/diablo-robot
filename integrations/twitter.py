@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def nitter_pic_to_twimg(url: str) -> str:
-    """Convert a Nitter image proxy URL to its original pbs.twimg.com URL."""
     match = re.match(r'https?://[^/]+/pic/(.+)', url)
     if not match:
         return url
@@ -28,8 +27,6 @@ def nitter_pic_to_twimg(url: str) -> str:
 
 
 class NitterHTMLParser(HTMLParser):
-    """Parses Nitter's RSS <description> HTML to extract media and quote info."""
-
     def __init__(self):
         super().__init__()
         self.images = []
@@ -154,7 +151,7 @@ class Twitter:
         name = influencer["name"]
         feed_url = f"{self.rss_bridge_url}/{name}/rss"
 
-        async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+        async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
             if response.status != 200:
                 logger.warning(f"Failed to fetch {feed_url}: status {response.status}")
                 return

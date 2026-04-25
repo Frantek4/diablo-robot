@@ -40,6 +40,12 @@ class FixtureDAO:
             }}
         )
 
+    def get_by_match_id(self, match_id: str) -> Optional[Fixture]:
+        result = self.collection.find_one({"match_id": match_id})
+        if result:
+            return Fixture.from_dict(result, doc_id=str(result['_id']))
+        return None
+
     def get_fixture_by_id(self, fixture_id: str) -> Optional[Fixture]:
         result = self.collection.find_one({"_id": ObjectId(fixture_id)})
         if result:

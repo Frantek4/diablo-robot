@@ -62,13 +62,9 @@ class EventLifecycleManager(commands.Cog):
 
 
     async def _on_event_start(self, event_id: int, channel_id: int, event_name: str):
+        
         guild = self.bot.get_guild(settings.GUILD_ID)
-        if not guild:
-            return
-
         channel = guild.get_channel(channel_id)
-        if not isinstance(channel, discord.VoiceChannel):
-            return
 
         try:
             invite = await channel.create_invite(max_uses=0)
@@ -93,14 +89,10 @@ class EventLifecycleManager(commands.Cog):
             return
 
         try:
-            try:
-                event = await guild.fetch_scheduled_event(event_id)
-                await event.delete(reason="Evento finalizado")
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                pass
-
-        except Exception as e:
-            await self.bot.messager.log(f"Error al eliminar evento {event_id}: {e}")
+            event = await guild.fetch_scheduled_event(event_id)
+            await event.delete(reason="Evento finalizado")
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            pass
 
 async def setup(bot):
     await bot.add_cog(EventLifecycleManager(bot))

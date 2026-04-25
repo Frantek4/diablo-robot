@@ -91,7 +91,6 @@ class OleScraper:
         return items
 
     def _find_all_lilanews(self, obj):
-        """Busca recursivamente todos los objetos con type 'lilanews'."""
         results = []
         if isinstance(obj, dict):
             if obj.get('type') == 'lilanews':
@@ -104,21 +103,11 @@ class OleScraper:
         return results
 
     def _extract_image_url(self, item):
-        """Extrae la URL de la imagen principal."""
-        image_url = None
-        # Buscar en 'images' en lugar de 'clippings'
         images = item.get('images', [])
-        if images:
-            # Tomar la primera imagen de la lista
-            first_image = images[0]
-            # Buscar 'clippings' dentro de la primera imagen
-            clippings = first_image.get('clippings', [])
-            if clippings:
-                # Buscar clipping con id 'Listado Destacada'
-                destacada_clip = next((clip for clip in clippings if clip.get('_id') == 'Listado Destacada'), None)
-                if destacada_clip:
-                    image_url = destacada_clip.get('url')
-                else:
-                    # Si no se encuentra, tomar el primer clipping
-                    image_url = clippings[0].get('url')
-        return image_url
+        if not images:
+            return None
+        clippings = images[0].get('clippings', [])
+        if not clippings:
+            return None
+        destacada = next((c for c in clippings if c.get('_id') == 'Listado Destacada'), None)
+        return (destacada or clippings[0]).get('url')

@@ -31,7 +31,6 @@ def validate() -> bool:
 
 
 async def main():
-    """Main entry point for the bot"""
     if not validate():
         logger.critical("Validación fallida. Abortando inicio del bot.")
         return

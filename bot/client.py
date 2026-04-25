@@ -1,23 +1,17 @@
 import logging
 import discord
 from discord.ext import commands
-from bot.scheduled.fixture_check import FixtureCheckScheduler
-from bot.scheduled.live_match_scheduler import LiveMatchScheduler
-from bot.scheduled.news_check import NewsCheckScheduler
-from bot.scheduled.twitter_check import TwitterCheckScheduler
-from bot.scheduled.youtube_check import YouTubeCheckScheduler
 from bot.config.messager import Messager, init_messager
 from config.settings import settings
-from data_access.fixtures import FixtureDAO
-from data_access.games import GameDAO
-from data_access.influencers import InfluencerDAO
-from data_access.news import NewsDAO
+from data_access.fixture_dao import FixtureDAO
+from data_access.game_dao import GameDAO
+from data_access.influencer_dao import InfluencerDAO
+from data_access.news_dao import NewsDAO
 
 logger = logging.getLogger(__name__)
 
 
 class DiabloRobot(commands.Bot):
-
 
     def __init__(self):
         intents = discord.Intents.default()
@@ -32,88 +26,47 @@ class DiabloRobot(commands.Bot):
             command_prefix=settings.PREFIX,
             intents=intents
         )
-        self.messager : Messager = None
-
-        #DAOs
+        self.messager: Messager = None
         self.news_dao = NewsDAO()
         self.games_dao = GameDAO()
         self.influencer_dao = InfluencerDAO()
         self.fixture_dao = FixtureDAO()
-    
-
 
     async def setup_hook(self):
-
-        # Cogs
         await self.load_extension('bot.cogs.fixture_event_creator')
         await self.load_extension('bot.cogs.event_lifecycle_manager')
-        
-        # Commands
         await self.load_extension('bot.commands.ping')
         await self.load_extension('bot.commands.fijate')
         await self.load_extension('bot.commands.nuevo_juego')
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
-        
-        # Scheduled
         await self.load_extension('bot.scheduled.fixture_check')
         await self.load_extension('bot.scheduled.live_match_scheduler')
         await self.load_extension('bot.scheduled.news_check')
         await self.load_extension('bot.scheduled.twitter_check')
         await self.load_extension('bot.scheduled.youtube_check')
-        
-        # Listeners
         await self.load_extension('bot.listeners.game_role')
         await self.load_extension('bot.listeners.event_start_announcer')
         await self.load_extension('bot.listeners.post_match_discussion')
-
         logger.info("Extensiones cargadas")
-    
-
 
     async def on_ready(self):
-        
-        fixture_creator: FixtureCheckScheduler = self.get_cog('FixtureCheckScheduler')
-        fixture_creator.start_scheduled_job()
-
-        live_match_scheduler: LiveMatchScheduler = self.get_cog('LiveMatchScheduler')
-        live_match_scheduler.start_scheduled_job()
-
-        news_poster: NewsCheckScheduler = self.get_cog('NewsCheckScheduler')
-        news_poster.start_scheduled_job()
-
-        twitter_checker: TwitterCheckScheduler = self.get_cog('TwitterCheckScheduler')
-        twitter_checker.start_scheduled_job()
-
-        youtube_checker: YouTubeCheckScheduler = self.get_cog('YouTubeCheckScheduler')
-        youtube_checker.start_scheduled_job()
-
-
+        self.get_cog('FixtureCheckScheduler').start_scheduled_job()
+        self.get_cog('LiveMatchScheduler').start_scheduled_job()
+        self.get_cog('NewsCheckScheduler').start_scheduled_job()
+        self.get_cog('TwitterCheckScheduler').start_scheduled_job()
+        self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         init_messager(self)
-
         logger.info(f'{self.user} conectado a Club Atlético Independiente')
-        
-        await self.change_presence(
-            activity=discord.CustomActivity(
-                name="Atendiendo boludos"
-            )
-        )
-        
+        await self.change_presence(activity=discord.CustomActivity(name="Atendiendo boludos"))
 
-    
     async def on_message(self, message):
-        # Ignore messages sent by the bot itself
         if message.author == self.user:
             return
-        
-        # Ignore incoming messages outside of #diablo-robot
         if message.channel.id != settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
             return
-        
         await self.process_commands(message)
-
-
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
@@ -123,25 +76,3 @@ class DiabloRobot(commands.Bot):
         else:
             logger.error(f"Error de comando '{ctx.command}': {error}", exc_info=error)
             await ctx.send("Que rompimooo")
-
-
-    
-    # When the guild updates their emojis
-    # TODO Announce added emojis
-    async def on_guild_emojis_update(self, guild, before, after):
-        return
-    
-
-
-    # When the guild updates their stickers
-    # TODO Announce added stickers
-    async def on_guild_stickers_update(self, guild, before, after):
-        return
-    
-
-
-    # When a user becomes a member of the guild
-    # TODO Greet new user and give instructive
-    async def on_member_join(self, member):
-        return
-

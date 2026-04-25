@@ -13,7 +13,7 @@ class NewsCheckScheduler(commands.Cog):
         self.bot = bot
         self.ole_scraper = OleScraper(bot)
         self.tyc_scraper = TycSportsScraper(bot)
-        self.doble_amarilla_scrper = DobleAmarillaScraper(bot)
+        self.doble_amarilla_scraper = DobleAmarillaScraper(bot)
 
     def cog_unload(self):
         self.news_scheduled_job.cancel()
@@ -24,14 +24,9 @@ class NewsCheckScheduler(commands.Cog):
 
     @tasks.loop(hours=1)
     async def news_scheduled_job(self):
-        try:
-            await self.ole_scraper.scrape_news()
-            await self.tyc_scraper.scrape_news()
-            await self.doble_amarilla_scrper.scrape_news()
-
-        except Exception as e:
-            logger.error(f"Error in news check cycle: {str(e)}", exc_info=True)
-            await self.bot.messager.log(f"Error buscando nuevas noticias: {str(e)}")
+        await self.ole_scraper.scrape_news()
+        await self.tyc_scraper.scrape_news()
+        await self.doble_amarilla_scraper.scrape_news()
 
 
 async def setup(bot):

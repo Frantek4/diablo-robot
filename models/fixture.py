@@ -52,7 +52,6 @@ class Fixture:
         )
 
     def to_description(self) -> str:
-        """Genera una descripción legible para el evento de Discord"""
         date_str = self.match_date.strftime("%d/%m/%Y %H:%M")
         return (f"      ⚽    {self.home_team} vs {self.away_team}\n"
                 f"      🏆    {self.competition}\n"
@@ -63,7 +62,6 @@ class Fixture:
 
     @classmethod
     def from_description(cls, description: str) -> Optional['Fixture']:
-        """Reconstruye un objeto Fixture desde la descripción del evento"""
         if not description:
             return None
         try:
@@ -102,10 +100,9 @@ class Fixture:
             return None
 
     def get_changes(self, other: 'Fixture') -> str:
-        """Compara dos fixtures y devuelve un texto con las diferencias"""
         changes = []
 
-        # Usamos strings formateados para la comparación de fecha para evitar diferencias por segundos o tzinfo
+        # Comparamos strings para ignorar diferencias de segundos y tzinfo
         self_date_str = self.match_date.strftime("%d/%m/%Y %H:%M")
         other_date_str = other.match_date.strftime("%d/%m/%Y %H:%M")
 

@@ -58,7 +58,6 @@ class NuevoJuegoCommand(commands.Cog):
         games_category: discord.CategoryChannel = guild.get_channel(settings.GAMES_CATEGORY_ID)
 
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
-        game_channel = None
         if not existing_channel:
             try:
                 overwrites = {
@@ -82,7 +81,7 @@ class NuevoJuegoCommand(commands.Cog):
                 await self.bot.messager.log(f"Canal de texto '#{channel_name}' creado exitosamente en la categoría '{games_category.name}'.")
             except discord.Forbidden:
                 await self.bot.messager.log("Error: No tengo permiso para crear canales o establecer permisos.")
-                return 
+                return
             except discord.HTTPException as e:
                 await self.bot.messager.log(f"Error al crear el canal '#{channel_name}': {e}")
                 return
@@ -92,30 +91,24 @@ class NuevoJuegoCommand(commands.Cog):
 
         file = await attachment.to_file()
         message = await self.bot.messager.add_to_catalogue(game_name, file)
-    
+
         game = GameChannel(
             name=game_name,
             message_id=message.id,
             text_channel_id=game_channel.id
         )
-
-        success = self.bot.games_dao.create_game(game)
-
-        if not success:
-             await self.bot.messager.log(f"Error al crear el juego {game_name} en la base de datos.")
-             return
+        self.bot.games_dao.create_game(game)
 
         try:
             await message.add_reaction("🎮")
         except (discord.Forbidden, discord.HTTPException) as e:
             await self.bot.messager.log(f"Advertencia: Fallo al añadir reacción al mensaje de catálogo: {e}")
-        
 
-        announcement_msg = f"Nuevo juego disponible: **{game_name}**\n\n"
-        if game_channel:
-             announcement_msg += f"Canal: {game_channel.mention}\n"
-        announcement_msg += f"Reaccioná con 🎮 en <#{settings.GAMES_TEXT_CHANNEL_ID}> para obtener el rol."
-        
+        announcement_msg = (
+            f"Nuevo juego disponible: **{game_name}**\n\n"
+            f"Canal: {game_channel.mention}\n"
+            f"Reaccioná con 🎮 en <#{settings.GAMES_TEXT_CHANNEL_ID}> para obtener el rol."
+        )
         await self.bot.messager.announce(announcement_msg)
         await self.bot.messager.log(f"{game_name} creado en #juegos y anunciado. Rol: {game_name}, Canal: #{channel_name}")
 

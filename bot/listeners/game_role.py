@@ -1,4 +1,3 @@
-# bot/listeners/game_role.py
 import discord
 from discord.ext import commands
 from config.settings import settings
@@ -9,10 +8,8 @@ class GameRoleHandler(commands.Cog):
         self.bot = bot
 
     def _validate_reaction_payload(self, payload: discord.RawReactionActionEvent) -> bool:
-        
         if payload.user_id == self.bot.user.id:
-            return
-        
+            return False
         if payload.channel_id != settings.GAMES_TEXT_CHANNEL_ID:
             return False
         

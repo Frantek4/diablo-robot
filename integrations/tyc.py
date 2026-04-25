@@ -61,9 +61,6 @@ class TycSportsScraper:
 
     def _extract_news_links(self, origin_url, soup):
         links = []
-        
-        # Buscar enlaces de noticias en la página principal
-        # Buscar enlaces que contengan '/independiente/' en la URL
         for link in soup.find_all('a', href=True):
             href = link['href']
             if '/' + origin_url + '/' in href and '/' + origin_url + '/' != href.strip('/') and 'reels' not in href.lower():
@@ -77,31 +74,23 @@ class TycSportsScraper:
         try:
             async with session.get(article_url, headers=self.headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 html = await response.text()
-            
+
             soup = BeautifulSoup(html, 'lxml')
-            
-            # Extraer el título desde la etiqueta <title> o <h1>
+
             title = ""
             title_tag = soup.find('title')
             if title_tag:
-                # Limpiar el título de la pestaña quitando el "- TyC Sports" temporalmente solo para obtener el texto base
-                raw_title = title_tag.get_text(strip=True)
-                # Usar la misma lógica de limpieza que al final para obtener solo el título real
-                cleaned_for_extraction = re.sub(r'\s*[-–]\s*TyC Sports\s*$', '', raw_title, flags=re.IGNORECASE | re.UNICODE)
-                title = cleaned_for_extraction.strip()
+                title = re.sub(r'\s*[-–]\s*TyC Sports\s*$', '', title_tag.get_text(strip=True), flags=re.IGNORECASE | re.UNICODE).strip()
             else:
-                # Fallback: buscar h1
                 h1_tag = soup.find('h1')
                 if h1_tag:
                     title = h1_tag.get_text(strip=True)
-            
-            # Extraer la descripción desde el meta tag 'description'
+
             description = ""
             desc_meta = soup.find('meta', attrs={'name': 'description'})
             if desc_meta:
                 description = desc_meta.get('content', '').strip()
             else:
-                # Fallback: buscar h2 o p si no hay meta description
                 subtitle_tag = soup.find('h2', class_=lambda x: x and 'headline' not in x.lower())
                 if subtitle_tag:
                     description = subtitle_tag.get_text(strip=True)
@@ -111,17 +100,12 @@ class TycSportsScraper:
                         first_paragraph = soup.find('p')
                     if first_paragraph:
                         description = first_paragraph.get_text(strip=True)
-            
-            # Extraer imagen principal
+
             image_url = None
-            # Priorizar og:image
             og_image = soup.find('meta', property='og:image')
-            if og_image and og_image.get('content'):
-                og_img_url = og_image['content']
-                if not og_img_url.startswith('data:image'):
-                    image_url = self.bot.news_dao.normalize_url(self.domain, og_img_url)
-            
-            # Si og:image falla, intentar con JSON-LD
+            if og_image and og_image.get('content') and not og_image['content'].startswith('data:image'):
+                image_url = self.bot.news_dao.normalize_url(self.domain, og_image['content'])
+
             if not image_url:
                 schema_article = soup.find('script', type='application/ld+json')
                 if schema_article:
@@ -129,32 +113,22 @@ class TycSportsScraper:
                         schema_data = json.loads(schema_article.string)
                         if schema_data.get('@type') == 'NewsArticle':
                             images = schema_data.get('image', [])
-                            if isinstance(images, list) and len(images) > 0:
-                                # Tomar la primera imagen del array
+                            if isinstance(images, list) and images:
                                 img_obj = images[0]
-                                if isinstance(img_obj, dict):
-                                    img_url = img_obj.get('url')
-                                else:
-                                    img_url = img_obj # Si es directamente un string
+                                img_url = img_obj.get('url') if isinstance(img_obj, dict) else img_obj
                                 if img_url and not img_url.startswith('data:image'):
                                     image_url = self.bot.news_dao.normalize_url(self.domain, img_url)
                     except (json.JSONDecodeError, TypeError):
-                        pass # Si no se puede parsear el JSON, ignora
+                        pass
 
-            # Si og:image y JSON-LD fallan, intentar con la imagen principal (mainImg)
             if not image_url:
                 img_tag = soup.find('img', class_='mainImg')
                 if img_tag:
-                    # Priorizar data-src para lazy loading
                     src_value = img_tag.get('data-src') or img_tag.get('src')
                     if src_value and not src_value.startswith('data:image'):
                         image_url = self.bot.news_dao.normalize_url(self.domain, src_value)
-            
-            return {
-                'title': title,
-                'description': description,
-                'image_url': image_url
-            }
+
+            return {'title': title, 'description': description, 'image_url': image_url}
         except Exception as e:
             logger.error(f"Error obteniendo detalles de {article_url}: {e}")
             return {'title': '', 'description': '', 'image_url': None}
