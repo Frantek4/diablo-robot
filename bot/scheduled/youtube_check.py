@@ -1,9 +1,6 @@
-import logging
 from discord.ext import commands, tasks
 
 from integrations.youtube import YouTube
-
-logger = logging.getLogger(__name__)
 
 
 class YouTubeCheckScheduler(commands.Cog):
@@ -23,8 +20,7 @@ class YouTubeCheckScheduler(commands.Cog):
         try:
             await self.youtube.check_rss_notifications()
         except Exception as e:
-            logger.error(f"Error in YouTube check: {str(e)}", exc_info=True)
-            await self.bot.messager.log(f"Error escaneando YouTube: {str(e)}")
+            await self.bot.messager.log(f"No pude escanear YouTube: {e}", level="ERROR", exc=e)
 
 
 async def setup(bot):

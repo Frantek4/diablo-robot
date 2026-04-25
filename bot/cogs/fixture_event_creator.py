@@ -72,19 +72,23 @@ class FixtureEventCreator(commands.Cog):
             with open(image_url, "rb") as image_file:
                 image = image_file.read()
         except FileNotFoundError:
-            await self.bot.messager.log(f"Imagen no encontrada en: {image_url}")
+            await self.bot.messager.log(f"No encontré la imagen en {image_url}, la extraño socio.", level="WARNING")
             image = None
 
-        event = await guild.create_scheduled_event(
-            name=event_name,
-            description=fixture.to_description(),
-            start_time=start_time,
-            end_time=end_time,
-            channel=channel_obj,
-            entity_type=discord.EntityType.voice,
-            privacy_level=discord.PrivacyLevel.guild_only,
-            image=image
-        )
+        try:
+            event = await guild.create_scheduled_event(
+                name=event_name,
+                description=fixture.to_description(),
+                start_time=start_time,
+                end_time=end_time,
+                channel=channel_obj,
+                entity_type=discord.EntityType.voice,
+                privacy_level=discord.PrivacyLevel.guild_only,
+                image=image
+            )
+        except discord.HTTPException as e:
+            await self.bot.messager.log(f"No pude crear el evento '{event_name}': {e}", level="ERROR", exc=e)
+            return
 
         view = EventRedirectView(settings.GUILD_ID, event.id, start_time)
         await self.bot.messager.announce_interactive(f"** *¡Nuevo evento!* **\n\n{fixture.to_description()}", view)

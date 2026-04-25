@@ -16,7 +16,7 @@ class NuevoTwitter(commands.Cog):
             platform_enum = SocialMedia.TWITTER
 
             if self.bot.influencer_dao.exists(username, platform_enum):
-                await self.bot.messager.log(f'{username} ya está registrado para {SocialMedia.TWITTER}.')
+                await self.bot.messager.log(f'Ya sigo a {description} en Twitter.')
                 return
             
             account = InfluencerModel(
@@ -29,9 +29,9 @@ class NuevoTwitter(commands.Cog):
             
             self.bot.influencer_dao.insert(account)
             
-            await self.bot.messager.log(f'{username} agregado como influencer de Twitter.')
+            await self.bot.messager.log(f'Siguiendo a {description} en Twitter.')
         except ValueError:
-            await self.bot.messager.log(f"Fuente {source} o plataforma {SocialMedia.TWITTER} inválidos.")
+            await self.bot.messager.log(f"No reconozco la fuente '{source}' para Twitter.", level="WARNING")
 
 async def setup(bot):
     await bot.add_cog(NuevoTwitter(bot))

@@ -1,12 +1,9 @@
-import logging
 import aiohttp
 from bs4 import BeautifulSoup
 import re
 import json
 
 from models.news_source import NewsSource
-
-logger = logging.getLogger(__name__)
 
 
 class OleScraper:
@@ -32,7 +29,7 @@ class OleScraper:
                         html = await response.text()
                     
                     soup = BeautifulSoup(html, 'lxml')
-                    news = self._extract_news(url, soup)
+                    news = await self._extract_news(url, soup)
 
                     for item in news:
                         news_url = self.bot.news_dao.normalize_url(self.domain, item['url'])
@@ -53,9 +50,9 @@ class OleScraper:
                         self.bot.news_dao.insert(news_url)
                         
                 except Exception as e:
-                    await self.bot.messager.log(f"Error al scrapear Olé ({url}): {str(e)}")
+                    await self.bot.messager.log(f"No pude scrapear Olé ({url}): {e}", level="ERROR", exc=e)
 
-    def _extract_news(self, original_url, soup):
+    async def _extract_news(self, original_url, soup):
         items = []
         
         next_data_script = soup.find('script', id='__NEXT_DATA__')
@@ -86,7 +83,7 @@ class OleScraper:
                             })
 
             except (json.JSONDecodeError, TypeError):
-                logger.warning(f"No se pudo parsear __NEXT_DATA__ para '{original_url}'")
+                await self.bot.messager.log(f"No pude parsear __NEXT_DATA__ de Olé para '{original_url}'.", level="WARNING")
 
         return items
 

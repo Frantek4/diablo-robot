@@ -16,7 +16,7 @@ class NuevoInstagram(commands.Cog):
             platform_enum = SocialMedia.INSTAGRAM
 
             if self.bot.influencer_dao.exists(username,platform_enum):
-                await self.bot.messager.log(f'{username} ya está registrado para {SocialMedia.INSTAGRAM}.')
+                await self.bot.messager.log(f'Ya sigo a {description} en Instagram.')
                 return
             
             account = InfluencerModel(
@@ -29,9 +29,9 @@ class NuevoInstagram(commands.Cog):
             
             self.bot.influencer_dao.insert(account)
             
-            await self.bot.messager.log(f'{username} agregado como influencer.')
+            await self.bot.messager.log(f'Suscrito a {description} a Instagram.')
         except ValueError:
-            await self.bot.messager.log(f"Fuente {source} o plataforma {SocialMedia.INSTAGRAM} inválidos.")
+            await self.bot.messager.log(f"No reconozco la fuente '{source}' para Instagram.", level="WARNING")
 
 async def setup(bot):
     await bot.add_cog(NuevoInstagram(bot))

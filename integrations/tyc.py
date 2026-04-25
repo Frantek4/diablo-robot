@@ -1,12 +1,9 @@
-import logging
 import aiohttp
 from bs4 import BeautifulSoup
 import re
 import json
 
 from models.news_source import NewsSource
-
-logger = logging.getLogger(__name__)
 
 class TycSportsScraper:
     def __init__(self, bot):
@@ -57,7 +54,7 @@ class TycSportsScraper:
                         self.bot.news_dao.insert(news_url)
                         
                 except Exception as e:
-                    await self.bot.messager.log(f"❌ Error al scrapear TyC Sports ({url}): {str(e)}")
+                    await self.bot.messager.log(f"No pude scrapear TyC Sports ({url}): {e}", level="ERROR", exc=e)
 
     def _extract_news_links(self, origin_url, soup):
         links = []
@@ -130,5 +127,5 @@ class TycSportsScraper:
 
             return {'title': title, 'description': description, 'image_url': image_url}
         except Exception as e:
-            logger.error(f"Error obteniendo detalles de {article_url}: {e}")
+            await self.bot.messager.log(f"No pude obtener los detalles de {article_url} en TyC Sports: {e}", level="ERROR", exc=e)
             return {'title': '', 'description': '', 'image_url': None}

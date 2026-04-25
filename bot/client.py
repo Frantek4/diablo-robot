@@ -58,7 +58,7 @@ class DiabloRobot(commands.Bot):
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         init_messager(self)
         await self.get_cog('EventLifecycleManager').start()
-        logger.info(f'{self.user} conectado a Club Atlético Independiente')
+        logger.info(f'{self.user} conectado a {self.guilds[0].name}')
         await self.change_presence(activity=discord.CustomActivity(name="Atendiendo boludos"))
 
     async def on_message(self, message):
@@ -74,5 +74,8 @@ class DiabloRobot(commands.Bot):
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send("No toqués")
         else:
-            logger.error(f"Error de comando '{ctx.command}': {error}", exc_info=error)
             await ctx.send("Que rompimooo")
+            if self.messager:
+                await self.messager.log(f"Error de comando '{ctx.command}': {error}", level="ERROR", exc=error)
+            else:
+                await ctx.send(f"Error de comando '{ctx.command}': {error} (messager indisponible)")

@@ -1,13 +1,10 @@
 import asyncio
-import logging
 import aiohttp
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 import discord
 from config.settings import settings
 from models.fixture_status import FixtureStatus
-
-logger = logging.getLogger(__name__)
 
 class LiveMatchScheduler(commands.Cog):
     def __init__(self, bot):
@@ -29,24 +26,26 @@ class LiveMatchScheduler(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_upcoming_matches(self):
-        next_match = self.bot.fixture_dao.get_next_match()
-        if not next_match or not next_match.match_id or not next_match.id:
-            return
+        try:
+            next_match = self.bot.fixture_dao.get_next_match()
+            if not next_match or not next_match.match_id or not next_match.id:
+                return
 
-        now = datetime.now(settings.TIMEZONE)
-        time_to_match = next_match.match_date - now
+            now = datetime.now(settings.TIMEZONE)
+            time_to_match = next_match.match_date - now
 
-        if time_to_match <= timedelta(minutes=30) and next_match.match_id not in self.active_trackers:
-            if next_match.status == FixtureStatus.SCHEDULED:
-                self.bot.fixture_dao.update_status(next_match.id, FixtureStatus.LIVE)
-            task = asyncio.create_task(self.track_match_live(next_match.match_id, next_match.id))
-            self._tracking_tasks.add(task)
-            task.add_done_callback(self._tracking_tasks.discard)
+            if time_to_match <= timedelta(minutes=30) and next_match.match_id not in self.active_trackers:
+                if next_match.status == FixtureStatus.SCHEDULED:
+                    self.bot.fixture_dao.update_status(next_match.id, FixtureStatus.LIVE)
+                task = asyncio.create_task(self.track_match_live(next_match.match_id, next_match.id))
+                self._tracking_tasks.add(task)
+                task.add_done_callback(self._tracking_tasks.discard)
+        except Exception as e:
+            await self.bot.messager.log(f"No pude chequear los próximos partidos: {e}", level="ERROR", exc=e)
 
     async def track_match_live(self, match_id: str, fixture_id: str):
         self.active_trackers[match_id] = {"seen_events": set(), "lineups_sent": False}
-        await self.bot.messager.log(f"Relator: iniciando seguimiento del partido {match_id}")
-        logger.info(f"Relator: Iniciando seguimiento en vivo para el partido {match_id}")
+        await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
         try:
             async with aiohttp.ClientSession() as session:
                 while True:
@@ -80,7 +79,7 @@ class LiveMatchScheduler(commands.Cog):
                     except asyncio.CancelledError:
                         raise
                     except Exception as e:
-                        logger.error(f"Error en el relato en vivo ({match_id}): {e}", exc_info=True)
+                        await self.bot.messager.log(f"El relator se escabió, {match_id}: {e}", level="ERROR", exc=e)
 
                     await asyncio.sleep(30)
         finally:

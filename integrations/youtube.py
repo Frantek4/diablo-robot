@@ -42,7 +42,7 @@ class YouTube:
                             if published_date < one_week_ago:
                                 continue
                         except (ValueError, AttributeError) as e:
-                            await self.bot.messager.log(f"Error parsing date for {video_url}: {str(e)}")
+                            await self.bot.messager.log(f"No pude parsear la fecha del video {video_url}: {e}", level="WARNING")
                             continue
 
                         description = entry.summary[:400] + "..." if len(entry.summary) > 400 else entry.summary
@@ -61,6 +61,6 @@ class YouTube:
                         await asyncio.sleep(1)
 
                 except Exception as e:
-                    await self.bot.messager.log(f"Error observando canal de Youtube {influencer['name']}: {str(e)}")
+                    await self.bot.messager.log(f"No pude revisar el canal '{influencer['name']}' de YouTube: {e}", level="ERROR", exc=e)
 
                 await asyncio.sleep(2)

@@ -16,7 +16,7 @@ class NuevoYouTube(commands.Cog):
             platform_enum = SocialMedia.YOUTUBE
 
             if self.bot.influencer_dao.exists(username,platform_enum):
-                await self.bot.messager.log(f'{username} ya está registrado para {SocialMedia.YOUTUBE}.')
+                await self.bot.messager.log(f'Ya estoy suscrito a {description} en YouTube.')
                 return
             
             account = InfluencerModel(
@@ -29,9 +29,9 @@ class NuevoYouTube(commands.Cog):
             
             self.bot.influencer_dao.insert(account)
             
-            await self.bot.messager.log(f'{username} agregado como influencer.')
+            await self.bot.messager.log(f'Suscrito a {description} en YouTube.')
         except ValueError:
-            await self.bot.messager.log(f"Fuente {source} o plataforma {SocialMedia.YOUTUBE} inválidos.")
+            await self.bot.messager.log(f"No reconozco la fuente '{source}' para YouTube.", level="WARNING")
 
 async def setup(bot):
     await bot.add_cog(NuevoYouTube(bot))

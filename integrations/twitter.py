@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import re
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
@@ -12,8 +11,6 @@ import feedparser
 from config.settings import settings
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
-
-logger = logging.getLogger(__name__)
 
 
 def nitter_pic_to_twimg(url: str) -> str:
@@ -95,7 +92,6 @@ def parse_entry(entry: dict, influencer: dict) -> dict | None:
     tweet_url = entry.get("link", "")
     normalized_url = nitter_to_x_url(tweet_url)
     if not normalized_url:
-        logger.warning(f"Could not parse tweet URL: {tweet_url}")
         return None
 
     published_parsed = entry.get("published_parsed")
@@ -144,7 +140,7 @@ class Twitter:
                     await self._process_influencer(session, influencer, one_week_ago, headers)
                 except Exception as e:
                     name = influencer.get("name", "unknown") if isinstance(influencer, dict) else str(influencer)
-                    logger.error(f"Error checking Twitter {name}: {e}", exc_info=True)
+                    await self.bot.messager.log(f"No pude procesar el feed de Twitter de {name}: {e}", level="ERROR", exc=e)
                 await asyncio.sleep(2)
 
     async def _process_influencer(self, session, influencer, one_week_ago, headers):
@@ -153,7 +149,7 @@ class Twitter:
 
         async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
             if response.status != 200:
-                logger.warning(f"Failed to fetch {feed_url}: status {response.status}")
+                await self.bot.messager.log(f"No pude obtener el RSS de {name} en Twitter (HTTP {response.status}).", level="WARNING")
                 return
 
             content = (await response.read()).decode("utf-8", errors="replace")
@@ -165,6 +161,9 @@ class Twitter:
         for entry in feed.entries[:5]:
             parsed = parse_entry(entry, influencer)
             if not parsed:
+                tweet_url = entry.get("link", "")
+                if tweet_url:
+                    await self.bot.messager.log(f"No pude parsear la URL del tweet de {name}: {tweet_url}", level="WARNING")
                 continue
 
             if parsed["published_date"] < one_week_ago:

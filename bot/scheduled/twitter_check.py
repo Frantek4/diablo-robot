@@ -1,9 +1,6 @@
-import logging
 from discord.ext import commands, tasks
 
 from integrations.twitter import Twitter
-
-logger = logging.getLogger(__name__)
 
 
 class TwitterCheckScheduler(commands.Cog):
@@ -23,8 +20,7 @@ class TwitterCheckScheduler(commands.Cog):
         try:
             await self.twitter.check_rss_notifications()
         except Exception as e:
-            logger.error(f"Error in Twitter check: {str(e)}", exc_info=True)
-            await self.bot.messager.log(f"Error escaneando Twitter: {str(e)}")
+            await self.bot.messager.log(f"No pude escanear Twitter: {e}", level="ERROR", exc=e)
 
 
 async def setup(bot):

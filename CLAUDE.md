@@ -48,6 +48,7 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 - Adding a new command: create file in `bot/commands/`, add `await bot.load_extension('bot.commands.filename')` in `bot/client.py`
 - Adding a new scheduled task: create file in `bot/scheduled/` with a `setup(bot)` function; load it in `client.py`
 - Discord channel IDs are env vars loaded via settings object on `config/settings.py` and accessed through the messager
+- **Logging**: all errors and warnings in async code must use `await messager.log(msg, level="ERROR"|"WARNING", exc=e)` — it posts to `ROBOT_DEVIL_TEXT_CHANNEL` and also calls the standard Python logger (visible via `journalctl`). Only use `logger.*` directly in sync helper methods where `await` is not possible. Messages should be written in first person, informally but informatively — e.g. `"No pude scrapear Olé"`, `"Le di el rol X a Y"`, `"No tengo permisos para..."` — not bureaucratic passive constructions.
 
 ### MongoDB Collections
 

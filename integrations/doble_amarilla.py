@@ -1,10 +1,7 @@
-import logging
 import aiohttp
 from bs4 import BeautifulSoup
 
 from models.news_source import NewsSource
-
-logger = logging.getLogger(__name__)
 
 
 class DobleAmarillaScraper:
@@ -51,7 +48,7 @@ class DobleAmarillaScraper:
                         self.bot.news_dao.insert(news_url)
 
                 except Exception as e:
-                    await self.bot.messager.log(f"Error al scrapear Doble Amarilla ({label}): {str(e)}")
+                    await self.bot.messager.log(f"No pude scrapear Doble Amarilla ({label}): {e}", level="ERROR", exc=e)
 
     def _extract_news(self, soup):
         items = []

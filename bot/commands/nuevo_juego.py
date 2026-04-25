@@ -20,20 +20,20 @@ class NuevoJuegoCommand(commands.Cog):
         channel_name = to_kebab_case(game_name)
         guild: discord.Guild = ctx.guild 
 
-        await self.bot.messager.log(f"Creando {game_name} como nuevo juego")
+        await self.bot.messager.log(f"Registrando '{game_name}'.")
 
         existing_game = self.bot.games_dao.get_game_by_name(game_name)
         if existing_game is not None:
-            await self.bot.messager.log(f"Ya existe un mensaje para el juego {game_name}: {existing_game.message_id}")
+            await self.bot.messager.log(f"Ya tengo a '{game_name}' en el catálogo (mensaje {existing_game.message_id}).")
             return
         
         if not ctx.message.attachments:
-            await self.bot.messager.log("Por favor adjuntá una imagen")
+            await self.bot.messager.log("Te falta una imagen adjunta.")
             return
 
         attachment = ctx.message.attachments[0]
         if not attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            await self.bot.messager.log("Por favor adjunta una imagen válida (PNG, JPG, JPEG, GIF)")
+            await self.bot.messager.log("Esa imagen no la acepto, necesito PNG, JPG, JPEG o GIF.")
             return
         
         role = discord.utils.get(guild.roles, name=game_name)
@@ -45,15 +45,15 @@ class NuevoJuegoCommand(commands.Cog):
                     hoist=True,
                     mentionable=True
                 )
-                await self.bot.messager.log(f"Rol '{game_name}' creado exitosamente.")
+                await self.bot.messager.log(f"Rol '{game_name}' creado.")
             except discord.Forbidden:
-                 await self.bot.messager.log("Error: No tengo permiso para crear roles.")
-                 return
+                await self.bot.messager.log(f"No tengo permisos para crear el rol '{game_name}'.", level="ERROR")
+                return
             except discord.HTTPException as e:
-                await self.bot.messager.log(f"Error al crear el rol '{game_name}': {e}")
+                await self.bot.messager.log(f"No pude crear el rol '{game_name}': {e}", level="ERROR", exc=e)
                 return
         else:
-             await self.bot.messager.log(f"El rol '{game_name}' ya existe.")
+             await self.bot.messager.log(f"El rol '{game_name}' ya existía, lo uso.")
 
         games_category: discord.CategoryChannel = guild.get_channel(settings.GAMES_CATEGORY_ID)
 
@@ -78,15 +78,15 @@ class NuevoJuegoCommand(commands.Cog):
                     reason=f"Canal creado con {settings.PREFIX}nuevo_juego para '{game_name}'",
                     topic=f"Canal dedicado a {game_name}"
                 )
-                await self.bot.messager.log(f"Canal de texto '#{channel_name}' creado exitosamente en la categoría '{games_category.name}'.")
+                await self.bot.messager.log(f"Creé el canal '#{channel_name}' en '{games_category.name}'.")
             except discord.Forbidden:
-                await self.bot.messager.log("Error: No tengo permiso para crear canales o establecer permisos.")
+                await self.bot.messager.log(f"No tengo permisos para crear el canal '#{channel_name}'.", level="ERROR")
                 return
             except discord.HTTPException as e:
-                await self.bot.messager.log(f"Error al crear el canal '#{channel_name}': {e}")
+                await self.bot.messager.log(f"No pude crear el canal '#{channel_name}': {e}", level="ERROR", exc=e)
                 return
         else:
-            await self.bot.messager.log(f"El canal '#{channel_name}' ya existe.")
+            await self.bot.messager.log(f"El canal '#{channel_name}' ya existía, lo uso.")
             game_channel = existing_channel
 
         file = await attachment.to_file()
@@ -102,7 +102,7 @@ class NuevoJuegoCommand(commands.Cog):
         try:
             await message.add_reaction("🎮")
         except (discord.Forbidden, discord.HTTPException) as e:
-            await self.bot.messager.log(f"Advertencia: Fallo al añadir reacción al mensaje de catálogo: {e}")
+            await self.bot.messager.log(f"No pude añadir la reacción al catálogo: {e}", level="WARNING", exc=e)
 
         announcement_msg = (
             f"Nuevo juego disponible: **{game_name}**\n\n"
@@ -110,7 +110,7 @@ class NuevoJuegoCommand(commands.Cog):
             f"Reaccioná con 🎮 en <#{settings.GAMES_TEXT_CHANNEL_ID}> para obtener el rol."
         )
         await self.bot.messager.announce(announcement_msg)
-        await self.bot.messager.log(f"{game_name} creado en #juegos y anunciado. Rol: {game_name}, Canal: #{channel_name}")
+        await self.bot.messager.log(f"'{game_name}' listo: rol '{game_name}', canal #{channel_name}, anunciado.")
 
 
 

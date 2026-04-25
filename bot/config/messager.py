@@ -1,4 +1,5 @@
 import logging
+import traceback
 import discord
 from config.settings import settings
 from models.news_source import NewsSource
@@ -76,7 +77,7 @@ class Messager:
                 await self.press_channel.send(embed=embed)
         
         except Exception as e:
-            await self.log(f"Error al enviar noticia {url} a canal {type}: {str(e)}")
+            await self.log(f"Error al enviar noticia {url} a canal {type}: {e}", level="ERROR", exc=e)
 
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)
@@ -92,11 +93,25 @@ class Messager:
         message = await self.games_channel.send(content=title, file=attachment_file)
         return message
     
-    async def log(self, msg: str):
-        logger.info(msg)
-        if len(msg) > 2000:
-            msg = msg[:1997] + "..."
-        await self.devil_robot_channel.send(msg)
+    async def log(self, msg: str, level: str = "INFO", exc: Exception = None):
+        log_method = {"ERROR": logger.error, "WARNING": logger.warning}.get(level, logger.info)
+        log_method(msg, exc_info=exc if exc else False)
+
+        prefix = {"ERROR": "`[ERROR]`", "WARNING": "`[ADVERTENCIA]`"}.get(level, "`[INFO]`")
+        discord_msg = f"{prefix} {msg}"
+
+        if exc:
+            tb_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+            max_tb = 1900 - len(discord_msg)
+            if max_tb > 80:
+                if len(tb_str) > max_tb:
+                    tb_str = "...\n" + tb_str[-max_tb:]
+                discord_msg += f"\n```\n{tb_str}```"
+
+        if len(discord_msg) > 2000:
+            discord_msg = discord_msg[:1997] + "..."
+
+        await self.devil_robot_channel.send(discord_msg)
 
 def init_messager(bot):
     if not hasattr(bot, 'messager') or bot.messager is None:

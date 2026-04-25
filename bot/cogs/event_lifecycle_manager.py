@@ -1,11 +1,8 @@
-import logging
 from datetime import datetime
 from discord.ext import commands, tasks
 import discord
 from bot.ui.join_voice_button import VoiceJoinView
 from config.settings import settings
-
-logger = logging.getLogger(__name__)
 
 
 class EventLifecycleManager(commands.Cog):
@@ -51,7 +48,9 @@ class EventLifecycleManager(commands.Cog):
     async def _end_event(self, event: discord.ScheduledEvent):
         try:
             await event.end(reason="Evento finalizado")
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except discord.Forbidden:
+            await self.bot.messager.log(f"No me dejan cerrar el boliche '{event.name}'.", level="ERROR")
+        except (discord.NotFound, discord.HTTPException):
             pass
 
     async def _announce_start(self, event: discord.ScheduledEvent):
@@ -67,7 +66,7 @@ class EventLifecycleManager(commands.Cog):
                 view=view
             )
         except Exception as e:
-            logger.error(f"Error al anunciar inicio de {event.name}: {e}", exc_info=True)
+            await self.bot.messager.log(f"No arranca esto che... '{event.name}': {e}", level="ERROR", exc=e)
 
 
 async def setup(bot):

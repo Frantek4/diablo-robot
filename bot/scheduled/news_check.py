@@ -1,11 +1,8 @@
-import logging
 from discord.ext import commands, tasks
 
 from integrations.doble_amarilla import DobleAmarillaScraper
 from integrations.ole import OleScraper
 from integrations.tyc import TycSportsScraper
-
-logger = logging.getLogger(__name__)
 
 
 class NewsCheckScheduler(commands.Cog):
@@ -24,9 +21,12 @@ class NewsCheckScheduler(commands.Cog):
 
     @tasks.loop(hours=1)
     async def news_scheduled_job(self):
-        await self.ole_scraper.scrape_news()
-        await self.tyc_scraper.scrape_news()
-        await self.doble_amarilla_scraper.scrape_news()
+        try:
+            await self.ole_scraper.scrape_news()
+            await self.tyc_scraper.scrape_news()
+            await self.doble_amarilla_scraper.scrape_news()
+        except Exception as e:
+            await self.bot.messager.log(f"No pude completar el ciclo de noticias: {e}", level="ERROR", exc=e)
 
 
 async def setup(bot):
