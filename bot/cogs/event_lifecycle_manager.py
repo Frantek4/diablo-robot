@@ -1,98 +1,74 @@
-import asyncio
+import logging
 from datetime import datetime
-from discord.ext import commands
+from discord.ext import commands, tasks
 import discord
 from bot.ui.join_voice_button import VoiceJoinView
 from config.settings import settings
 
+logger = logging.getLogger(__name__)
+
+
 class EventLifecycleManager(commands.Cog):
-    
-    
+
     def __init__(self, bot):
         self.bot = bot
-        self._scheduled_jobs = {}
-
-
+        self._announced_ids: set[int] = set()
 
     def cog_unload(self):
-        for jobs in self._scheduled_jobs.values():
-            for task in jobs.values():
-                if not task.done():
-                    task.cancel()
-        self._scheduled_jobs.clear()
+        self.lifecycle_check.cancel()
 
-
-
-    def schedule_event_lifecycle(self, event: discord.ScheduledEvent):
-
-        if event.id in self._scheduled_jobs:
-            for task in self._scheduled_jobs[event.id].values():
-                if not task.done():
-                    task.cancel()
-
+    async def start(self):
+        guild = self.bot.get_guild(settings.GUILD_ID)
         now = datetime.now(settings.TIMEZONE)
+        midnight = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        for event in await guild.fetch_scheduled_events():
+            if event.status != discord.EventStatus.active or event.id in self._announced_ids:
+                continue
+            end = event.end_time.astimezone(settings.TIMEZONE) if event.end_time else midnight
+            if now >= end:
+                await self._end_event(event)
+            else:
+                await self._announce_start(event)
+        self.lifecycle_check.start()
 
-        start_time = event.start_time.astimezone(settings.TIMEZONE)
-        end_time = event.end_time.astimezone(settings.TIMEZONE)
+    @commands.Cog.listener()
+    async def on_scheduled_event_start(self, event):
+        if event.id not in self._announced_ids:
+            await self._announce_start(event)
 
-        start_delay = max(0, (start_time - now).total_seconds())
-        end_delay = max(0, (end_time - now).total_seconds())
+    @tasks.loop(minutes=5)
+    async def lifecycle_check(self):
+        guild = self.bot.get_guild(settings.GUILD_ID)
+        now = datetime.now(settings.TIMEZONE)
+        midnight = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        for event in guild.scheduled_events:
+            if event.status != discord.EventStatus.active:
+                continue
+            end = event.end_time.astimezone(settings.TIMEZONE) if event.end_time else midnight
+            if now >= end:
+                await self._end_event(event)
 
-        start_task = asyncio.create_task(
-            self._run_after_delay(start_delay, self._on_event_start, event)
-        )
-        end_task = asyncio.create_task(
-            self._run_after_delay(end_delay, self._on_event_end, event)
-        )
-
-        self._scheduled_jobs[event.id] = {
-            'start': start_task,
-            'end': end_task
-        }
-
-
-
-    async def _run_after_delay(self, delay: float, callback, *args):
+    async def _end_event(self, event: discord.ScheduledEvent):
         try:
-            await asyncio.sleep(delay)
-            await callback(*args)
-        except asyncio.CancelledError:
+            await event.end(reason="Evento finalizado")
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             pass
 
-
-
-    async def _on_event_start(self, event_id: int, channel_id: int, event_name: str):
-        
-        guild = self.bot.get_guild(settings.GUILD_ID)
-        channel = guild.get_channel(channel_id)
-
+    async def _announce_start(self, event: discord.ScheduledEvent):
+        self._announced_ids.add(event.id)
+        channel = self.bot.get_channel(event.channel_id)
+        if not isinstance(channel, discord.VoiceChannel):
+            return
         try:
             invite = await channel.create_invite(max_uses=0)
             view = VoiceJoinView(invite.url)
             await self.bot.messager.announce_interactive(
-                f"**¡Arranca el partido!**\nSumate a {channel.mention} para ver **{event_name}**",
+                f"**¡Arranca el partido!**\nSumate a {channel.mention} para ver **{event.name}**",
                 view=view
             )
-
         except Exception as e:
-            await self.bot.messager.log(f"Error al iniciar evento {event_id}: {e}")
+            logger.error(f"Error al anunciar inicio de {event.name}: {e}", exc_info=True)
 
-
-
-    async def _on_event_end(self, event_id: int, channel_id: int, event_name: str):
-        guild = self.bot.get_guild(settings.GUILD_ID)
-        if not guild:
-            return
-
-        channel = guild.get_channel(channel_id)
-        if not isinstance(channel, discord.VoiceChannel):
-            return
-
-        try:
-            event = await guild.fetch_scheduled_event(event_id)
-            await event.delete(reason="Evento finalizado")
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-            pass
 
 async def setup(bot):
     await bot.add_cog(EventLifecycleManager(bot))

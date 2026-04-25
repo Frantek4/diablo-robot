@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Context
+
+This is a **single-server, non-commercial** bot built for a personal community (Club Atlético Independiente fans). It will never run in more than one Discord server, so:
+- No multi-guild handling: no guild_id guards, no per-guild state, no guild lookup loops
+- No copyright or scraping concerns: web scraping and RSS aggregation are for community use only
+- No need to prepare for scenarios that only matter at scale (rate limits, sharding logic, multi-tenant isolation, etc.)
+
 ## Running the Bot
 
 ```bash

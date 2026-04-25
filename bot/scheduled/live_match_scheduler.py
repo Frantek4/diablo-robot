@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 import discord
 from config.settings import settings
+from models.fixture_status import FixtureStatus
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,9 @@ class LiveMatchScheduler(commands.Cog):
 
     def cog_unload(self):
         self.check_upcoming_matches.cancel()
+        for task in list(self._tracking_tasks):
+            task.cancel()
+        self._tracking_tasks.clear()
 
     def start_scheduled_job(self):
         if not self.check_upcoming_matches.is_running():
@@ -32,53 +36,55 @@ class LiveMatchScheduler(commands.Cog):
         now = datetime.now(settings.TIMEZONE)
         time_to_match = next_match.match_date - now
 
-        if timedelta(minutes=-180) <= time_to_match <= timedelta(minutes=15):
-            if next_match.match_id not in self.active_trackers:
-                task = asyncio.create_task(self.track_match_live(next_match.match_id, next_match.id))
-                self._tracking_tasks.add(task)
-                task.add_done_callback(self._tracking_tasks.discard)
+        if time_to_match <= timedelta(minutes=30) and next_match.match_id not in self.active_trackers:
+            if next_match.status == FixtureStatus.SCHEDULED:
+                self.bot.fixture_dao.update_status(next_match.id, FixtureStatus.LIVE)
+            task = asyncio.create_task(self.track_match_live(next_match.match_id, next_match.id))
+            self._tracking_tasks.add(task)
+            task.add_done_callback(self._tracking_tasks.discard)
 
     async def track_match_live(self, match_id: str, fixture_id: str):
         self.active_trackers[match_id] = {"seen_events": set(), "lineups_sent": False}
+        await self.bot.messager.log(f"Relator: iniciando seguimiento del partido {match_id}")
         logger.info(f"Relator: Iniciando seguimiento en vivo para el partido {match_id}")
-        
-        async with aiohttp.ClientSession() as session:
-            while True:
-                try:
-                    async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
-                        if resp.status != 200:
-                            await asyncio.sleep(30)
-                            continue
-                        
-                        data = await resp.json()
-                        game = data.get("game", {})
-                        status_enum = game.get("status", {}).get("enum", 0)
-                        status_name = game.get("status", {}).get("name", "").lower()
-                        
-                        lineups_data = game.get("players", {}).get("lineups", {})
-                        if not self.active_trackers[match_id]["lineups_sent"] and lineups_data:
-                            await self._send_lineups(game)
-                            self.active_trackers[match_id]["lineups_sent"] = True
+        try:
+            async with aiohttp.ClientSession() as session:
+                while True:
+                    try:
+                        async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
+                            if resp.status != 200:
+                                await asyncio.sleep(30)
+                                continue
 
-                        await self._process_events(match_id, game)
+                            data = await resp.json()
+                            game = data.get("game", {})
+                            status_enum = game.get("status", {}).get("enum", 0)
+                            status_name = game.get("status", {}).get("name", "").lower()
 
-                        if status_enum == 3 and "penales" not in status_name:
-                            score_home = int(game.get('scores', [0, 0])[0] or 0)
-                            score_away = int(game.get('scores', [0, 0])[1] or 0)
-                            final_score = f"{game['teams'][0]['name']} {score_home} - {score_away} {game['teams'][1]['name']}"
-                            
-                            await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
-                            logger.info(f"Relator: Partido {match_id} finalizado. {final_score}")
-                            
-                            self.bot.fixture_dao.update_score(fixture_id, score_home, score_away, "finished")
-                            
-                            del self.active_trackers[match_id]
-                            break
+                            lineups_data = game.get("players", {}).get("lineups", {})
+                            if not self.active_trackers[match_id]["lineups_sent"] and lineups_data:
+                                await self._send_lineups(game)
+                                self.active_trackers[match_id]["lineups_sent"] = True
 
-                except Exception as e:
-                    logger.error(f"Error en el relato en vivo ({match_id}): {e}", exc_info=True)
-                
-                await asyncio.sleep(30)
+                            await self._process_events(match_id, game)
+
+                            if status_enum == 3 and "penales" not in status_name:
+                                score_home = int(game.get('scores', [0, 0])[0] or 0)
+                                score_away = int(game.get('scores', [0, 0])[1] or 0)
+                                final_score = f"{game['teams'][0]['name']} {score_home} - {score_away} {game['teams'][1]['name']}"
+
+                                await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
+                                self.bot.fixture_dao.update_score(fixture_id, score_home, score_away, FixtureStatus.FINISHED)
+                                break
+
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        logger.error(f"Error en el relato en vivo ({match_id}): {e}", exc_info=True)
+
+                    await asyncio.sleep(30)
+        finally:
+            self.active_trackers.pop(match_id, None)
 
     async def _send_lineups(self, game):
         embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.blue())

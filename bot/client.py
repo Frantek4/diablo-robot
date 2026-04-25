@@ -47,7 +47,6 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.twitter_check')
         await self.load_extension('bot.scheduled.youtube_check')
         await self.load_extension('bot.listeners.game_role')
-        await self.load_extension('bot.listeners.event_start_announcer')
         await self.load_extension('bot.listeners.post_match_discussion')
         logger.info("Extensiones cargadas")
 
@@ -58,6 +57,7 @@ class DiabloRobot(commands.Bot):
         self.get_cog('TwitterCheckScheduler').start_scheduled_job()
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         init_messager(self)
+        await self.get_cog('EventLifecycleManager').start()
         logger.info(f'{self.user} conectado a Club Atlético Independiente')
         await self.change_presence(activity=discord.CustomActivity(name="Atendiendo boludos"))
 

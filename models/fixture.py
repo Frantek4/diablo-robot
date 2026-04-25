@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 import re
 from config.settings import settings
+from models.fixture_status import FixtureStatus
 
 @dataclass
 class Fixture:
@@ -14,7 +15,7 @@ class Fixture:
     venue: Optional[str] = None
     home_score: Optional[int] = None
     away_score: Optional[int] = None
-    status: str = "scheduled"
+    status: FixtureStatus = FixtureStatus.SCHEDULED
     referee: Optional[str] = None
     tv_channels: Optional[str] = None
     id: Optional[str] = None
@@ -45,7 +46,7 @@ class Fixture:
             venue=data.get("venue"),
             home_score=data.get("home_score"),
             away_score=data.get("away_score"),
-            status=data.get("status", "scheduled"),
+            status=FixtureStatus(data.get("status", FixtureStatus.SCHEDULED)),
             referee=data.get("referee"),
             tv_channels=data.get("tv_channels"),
             id=doc_id

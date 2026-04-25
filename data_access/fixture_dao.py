@@ -3,6 +3,7 @@ from typing import List, Optional
 from bson.objectid import ObjectId
 from config.settings import settings
 from models.fixture import Fixture
+from models.fixture_status import FixtureStatus
 from config.database import db
 
 class FixtureDAO:
@@ -15,22 +16,22 @@ class FixtureDAO:
 
     def get_next_match(self) -> Optional[Fixture]:
         now = datetime.now(settings.TIMEZONE).isoformat()
-        
         result = self.collection.find(
-            {
-                "status": "scheduled",
-                "match_date": {"$gt": now}
-            }
+            {"$or": [
+                {"status": FixtureStatus.LIVE},
+                {"status": FixtureStatus.SCHEDULED, "match_date": {"$gt": now}}
+            ]}
         ).sort("match_date", 1).limit(1)
-        
-        next_match_data = next(result, None)
-        
-        if not next_match_data:
-            return None
-            
-        return Fixture.from_dict(next_match_data, doc_id=str(next_match_data['_id']))
+        doc = next(result, None)
+        return Fixture.from_dict(doc, doc_id=str(doc['_id'])) if doc else None
 
-    def update_score(self, fixture_id: str, home_score: int, away_score: int, status: str = "finished"):
+    def update_status(self, fixture_id: str, status: FixtureStatus):
+        self.collection.update_one(
+            {"_id": ObjectId(fixture_id)},
+            {"$set": {"status": status}}
+        )
+
+    def update_score(self, fixture_id: str, home_score: int, away_score: int, status: FixtureStatus = FixtureStatus.FINISHED):
         self.collection.update_one(
             {"_id": ObjectId(fixture_id)},
             {"$set": {

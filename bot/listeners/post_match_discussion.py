@@ -12,10 +12,10 @@ class EventEndForumPoster(commands.Cog):
             title = f"Discusión post-partido {event.name[:74]}..."
 
         try:
-            thread = await self.bot.messager.post_thread(title,"")
-            await self.bot.messager.log(f"Created forum post: {thread.jump_url}")
+            thread = await self.bot.messager.post_thread(title, "¡El partido terminó! Compartí tu opinión.")
+            await self.bot.messager.log(f"Foro post-partido creado: {thread.jump_url}")
         except Exception as e:
-            await self.bot.messager.log(f"Failed to create forum post: {e}")
+            await self.bot.messager.log(f"Error al crear foro post-partido: {e}")
 
 
 async def setup(bot):

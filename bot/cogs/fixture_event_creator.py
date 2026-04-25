@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-from bot.cogs.event_lifecycle_manager import EventLifecycleManager
 from bot.ui.event_detail_button import EventRedirectView
 from models.fixture import Fixture
 from models.team_url import Teams
@@ -12,7 +11,6 @@ class FixtureEventCreator(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.event_lifecycle_manager = EventLifecycleManager(bot)
 
     async def upsert_next_fixture_event(self, team: Teams) -> None:
         url, image_url, channel_id = team.value
@@ -87,8 +85,6 @@ class FixtureEventCreator(commands.Cog):
             privacy_level=discord.PrivacyLevel.guild_only,
             image=image
         )
-
-        self.event_lifecycle_manager.schedule_event_lifecycle(event)
 
         view = EventRedirectView(settings.GUILD_ID, event.id, start_time)
         await self.bot.messager.announce_interactive(f"** *¡Nuevo evento!* **\n\n{fixture.to_description()}", view)
