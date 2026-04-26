@@ -1,8 +1,10 @@
 import asyncio
 import aiohttp
+import json
 from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 import discord
+from bs4 import BeautifulSoup
 from config.settings import settings
 from models.fixture_status import FixtureStatus
 
@@ -12,6 +14,7 @@ class LiveMatchScheduler(commands.Cog):
         self.active_trackers = {}
         self._tracking_tasks: set = set()
         self.api_url = "https://api.promiedos.com.ar/gamecenter/"
+        self.html_url = "https://www.promiedos.com.ar/game/"
         self.headers = {'User-Agent': settings.USER_AGENT}
 
     def cog_unload(self):
@@ -44,37 +47,45 @@ class LiveMatchScheduler(commands.Cog):
             await self.bot.messager.log(f"No pude chequear los próximos partidos: {e}", level="ERROR", exc=e)
 
     async def track_match_live(self, match_id: str, fixture_id: str):
-        self.active_trackers[match_id] = {"seen_events": set(), "lineups_sent": False}
+        self.active_trackers[match_id] = {"seen_events": set(), "lineups_sent": False, "url_name": None, "low_coverage_warned": False}
         await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
         try:
             async with aiohttp.ClientSession() as session:
                 while True:
                     try:
-                        async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
-                            if resp.status != 200:
-                                await asyncio.sleep(30)
-                                continue
+                        game = await self._fetch_game(session, match_id)
+                        if game is None:
+                            await asyncio.sleep(30)
+                            continue
 
-                            data = await resp.json()
-                            game = data.get("game", {})
-                            status_enum = game.get("status", {}).get("enum", 0)
-                            status_name = game.get("status", {}).get("name", "").lower()
+                        lineups_data = game.get("players", {}).get("lineups", {})
+                        if not self.active_trackers[match_id]["lineups_sent"] and lineups_data:
+                            await self._send_lineups(game)
+                            self.active_trackers[match_id]["lineups_sent"] = True
 
-                            lineups_data = game.get("players", {}).get("lineups", {})
-                            if not self.active_trackers[match_id]["lineups_sent"] and lineups_data:
-                                await self._send_lineups(game)
-                                self.active_trackers[match_id]["lineups_sent"] = True
+                        status_enum = game.get("status", {}).get("enum", 0)
+                        status_name = game.get("status", {}).get("name", "").lower()
 
-                            await self._process_events(match_id, game)
+                        await self._process_events(match_id, game)
 
-                            if status_enum == 3 and "penales" not in status_name:
-                                score_home = int(game.get('scores', [0, 0])[0] or 0)
-                                score_away = int(game.get('scores', [0, 0])[1] or 0)
-                                final_score = f"{game['teams'][0]['name']} {score_home} - {score_away} {game['teams'][1]['name']}"
+                        if (status_enum in (1, 2)
+                                and not game.get("events")
+                                and not self.active_trackers[match_id]["low_coverage_warned"]):
+                            await self.bot.messager.log(
+                                f"Estoy siguiendo el partido {match_id} en vivo pero Promiedos no reporta eventos "
+                                f"(baja cobertura). El marcador según la API es "
+                                f"{int(game.get('scores', [0,0])[0] or 0)}-{int(game.get('scores', [0,0])[1] or 0)}.",
+                                level="WARNING"
+                            )
+                            self.active_trackers[match_id]["low_coverage_warned"] = True
 
-                                await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
-                                self.bot.fixture_dao.update_score(fixture_id, score_home, score_away, FixtureStatus.FINISHED)
-                                break
+                        if status_enum == 3 and "penales" not in status_name:
+                            score_home = int(game.get('scores', [0, 0])[0] or 0)
+                            score_away = int(game.get('scores', [0, 0])[1] or 0)
+                            final_score = f"{game['teams'][0]['name']} {score_home} - {score_away} {game['teams'][1]['name']}"
+                            await self.bot.messager.commentator_update(f"Final del partido. Resultado: {final_score}")
+                            self.bot.fixture_dao.update_score(fixture_id, score_home, score_away, FixtureStatus.FINISHED)
+                            break
 
                     except asyncio.CancelledError:
                         raise
@@ -84,6 +95,42 @@ class LiveMatchScheduler(commands.Cog):
                     await asyncio.sleep(30)
         finally:
             self.active_trackers.pop(match_id, None)
+
+    async def _fetch_game(self, session, match_id):
+        url_name = self.active_trackers[match_id].get("url_name")
+
+        if url_name:
+            game = await self._fetch_html_game(session, url_name, match_id)
+            if game:
+                return game
+
+        async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
+            if resp.status != 200:
+                return None
+            data = await resp.json()
+            game = data.get("game", {})
+            if not url_name and game.get("url_name"):
+                self.active_trackers[match_id]["url_name"] = game["url_name"]
+            return game
+
+    async def _fetch_html_game(self, session, url_name, match_id):
+        url = f"{self.html_url}{url_name}/{match_id}"
+        async with session.get(url, headers=self.headers) as resp:
+            if resp.status != 200:
+                return None
+            content = await resp.text()
+        soup = BeautifulSoup(content, 'html.parser')
+        script = soup.find('script', id='__NEXT_DATA__')
+        if not script or not script.string:
+            return None
+        try:
+            data = json.loads(script.string)
+            return (data.get("props", {})
+                        .get("pageProps", {})
+                        .get("initialData", {})
+                        .get("game"))
+        except (json.JSONDecodeError, AttributeError):
+            return None
 
     async def _send_lineups(self, game):
         embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.blue())
