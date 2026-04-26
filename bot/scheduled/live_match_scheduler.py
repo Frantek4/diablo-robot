@@ -98,20 +98,24 @@ class LiveMatchScheduler(commands.Cog):
 
     async def _fetch_game(self, session, match_id):
         url_name = self.active_trackers[match_id].get("url_name")
+        api_game = None
+
+        if not url_name:
+            async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+                api_game = data.get("game", {})
+                url_name = api_game.get("url_name")
+                if url_name:
+                    self.active_trackers[match_id]["url_name"] = url_name
 
         if url_name:
             game = await self._fetch_html_game(session, url_name, match_id)
             if game:
                 return game
 
-        async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            game = data.get("game", {})
-            if not url_name and game.get("url_name"):
-                self.active_trackers[match_id]["url_name"] = game["url_name"]
-            return game
+        return api_game
 
     async def _fetch_html_game(self, session, url_name, match_id):
         url = f"{self.html_url}{url_name}/{match_id}"
