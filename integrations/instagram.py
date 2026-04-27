@@ -42,6 +42,21 @@ class Instagram:
         influencers: list[dict] = self.bot.influencer_dao.get_by_platform(SocialMedia.INSTAGRAM)
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
+        loop = asyncio.get_running_loop()
+        try:
+            logged_in_as = await loop.run_in_executor(None, self._get_loader().test_login)
+        except RuntimeError as e:
+            await self.bot.messager.log(str(e), level="ERROR")
+            return
+
+        if not logged_in_as:
+            self._loader = None
+            await self.bot.messager.log(
+                f"La sesión de Instagram no es válida. Ejecutá 'instaloader --login={settings.IG_USERNAME}' para renovarla.",
+                level="ERROR",
+            )
+            return
+
         for influencer in influencers:
             try:
                 await self._process_influencer(influencer, cutoff)
