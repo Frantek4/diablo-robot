@@ -15,7 +15,7 @@ class FixtureDAO:
         return str(result.inserted_id)
 
     def get_next_match(self) -> Optional[Fixture]:
-        now = datetime.now(settings.TIMEZONE).isoformat()
+        now = datetime.now(settings.TIMEZONE)
         result = self.collection.find(
             {"$or": [
                 {"status": FixtureStatus.LIVE},

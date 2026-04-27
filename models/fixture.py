@@ -24,7 +24,7 @@ class Fixture:
         return {
             "home_team": self.home_team,
             "away_team": self.away_team,
-            "match_date": self.match_date.isoformat(),
+            "match_date": self.match_date,
             "competition": self.competition,
             "venue": self.venue,
             "home_score": self.home_score,
@@ -41,7 +41,7 @@ class Fixture:
             match_id=data["match_id"],
             home_team=data["home_team"],
             away_team=data["away_team"],
-            match_date=datetime.fromisoformat(data["match_date"]),
+            match_date=data["match_date"] if isinstance(data["match_date"], datetime) else datetime.fromisoformat(data["match_date"]),
             competition=data["competition"],
             venue=data.get("venue"),
             home_score=data.get("home_score"),

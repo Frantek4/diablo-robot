@@ -11,7 +11,8 @@ class MongoDB:
                 settings.DATABASE_URL,
                 username=settings.DATABASE_USERNAME,
                 password=settings.DATABASE_PASSWORD,
-                authSource="admin"
+                authSource="admin",
+                tz_aware=True,
             )
         return cls._client.get_default_database(default='robot_devil')
 
