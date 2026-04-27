@@ -147,7 +147,7 @@ class Twitter:
         name = influencer["name"]
         feed_url = f"{self.rss_bridge_url}/{name}/rss"
 
-        async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
+        async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
             if response.status != 200:
                 await self.bot.messager.log(f"No pude obtener el RSS de {name} en Twitter (HTTP {response.status}).", level="WARNING")
                 return
