@@ -2,6 +2,7 @@ from discord.ui import View, Button
 from discord import ButtonStyle
 from datetime import datetime
 
+from config.settings import settings
 from utils.date_format import to_local
 
 
