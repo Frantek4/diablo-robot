@@ -57,7 +57,7 @@ class Fixture:
         return (f"      ⚽    {self.home_team} vs {self.away_team}\n"
                 f"      🏆    {self.competition}\n"
                 f"      🏟️    {self.venue or 'No anunciado'}\n"
-                f"      📅    {format_datetime(self.match_date)}\n"
+                f"      🗓️    {format_datetime(self.match_date)}\n"
                 f"      ⚖️    {self.referee or 'No anunciado'}\n"
                 f"      📺    {self.tv_channels or 'No anunciado'}")
 
@@ -69,7 +69,7 @@ class Fixture:
             teams_match = re.search(r"⚽\s+(.*?)\s+vs\s+(.*)", description)
             comp_match = re.search(r"🏆\s+(.*)", description)
             venue_match = re.search(r"🏟️\s+(.*)", description)
-            date_match = re.search(r"📅\s+(\d{2}/\d{2}/\d{4} \d{2}:\d{2})", description)
+            date_match = re.search(r"🗓️\s+(\d{2}/\d{2}/\d{4} \d{2}:\d{2})", description)
             ref_match = re.search(r"⚖️\s+(.*)", description)
             tv_match = re.search(r"📺\s+(.*)", description)
 
