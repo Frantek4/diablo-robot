@@ -40,6 +40,8 @@ class InstagramCheckScheduler(commands.Cog):
             SocialMedia.INSTAGRAM, AttentionLevel.LOW
         ) if hour in _LOW_ACTIVE_HOURS else []
 
+        random.shuffle(high_influencers)
+        random.shuffle(low_influencers)
         influencers = high_influencers + low_influencers
         if not influencers:
             return
