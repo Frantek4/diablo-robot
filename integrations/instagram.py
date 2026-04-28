@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 import instaloader
 
 from config.settings import settings
-from models.social_media import SocialMedia
 
 
 class Instagram:
@@ -38,8 +37,7 @@ class Instagram:
         self._loader = loader
         return loader
 
-    async def check_notifications(self):
-        influencers: list[dict] = self.bot.influencer_dao.get_by_platform(SocialMedia.INSTAGRAM)
+    async def check_notifications(self, influencers: list[dict]):
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
         for influencer in influencers:

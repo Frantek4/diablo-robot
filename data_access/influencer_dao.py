@@ -1,4 +1,4 @@
-from models.influencer import InfluencerModel
+from models.influencer import AttentionLevel, InfluencerModel
 from models.news_source import NewsSource
 from models.social_media import SocialMedia
 from config.database import db
@@ -16,7 +16,8 @@ class InfluencerDAO:
             'name': model.name,
             'description': model.description,
             'source': model.source.value,
-            'platform': model.platform.value
+            'platform': model.platform.value,
+            'attention': model.attention.value,
         })
         return True
 
@@ -32,3 +33,6 @@ class InfluencerDAO:
 
     def get_by_platform(self, platform: SocialMedia) -> list:
         return list(self.collection.find({"platform": platform.value}))
+
+    def get_by_platform_and_attention(self, platform: SocialMedia, attention: AttentionLevel) -> list:
+        return list(self.collection.find({"platform": platform.value, "attention": attention.value}))
