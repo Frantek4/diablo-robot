@@ -73,7 +73,7 @@ class Instagram:
             self._loader = None
             raise
 
-        for post in posts:
+        for post in reversed(posts):
             url = f"https://www.instagram.com/p/{post['shortcode']}/"
 
             if self.bot.news_dao.exists(url):
