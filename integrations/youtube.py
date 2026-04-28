@@ -46,7 +46,11 @@ class YouTube:
                             await self.bot.messager.log(f"No pude parsear la fecha del video {video_url}: {e}", level="WARNING")
                             continue
 
-                        description = entry.summary[:400] + "..." if len(entry.summary) > 400 else entry.summary
+                        is_short = "/shorts/" in video_url
+                        if is_short:
+                            description = f"Nuevo video corto de {influencer['name']}"
+                        else:
+                            description = entry.summary[:400] + "..." if len(entry.summary) > 400 else entry.summary
                         image_url = entry.media_thumbnail[0]['url'] if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail else None
 
                         await self.bot.messager.news(
