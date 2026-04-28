@@ -105,7 +105,7 @@ class Instagram:
             if len(caption) > 400:
                 caption = caption[:400] + "..."
 
-            image_url = None if post.is_video else post.url
+            image_url = post.url
 
             results.append({
                 "shortcode": post.shortcode,
