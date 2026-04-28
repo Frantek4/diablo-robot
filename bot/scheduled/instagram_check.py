@@ -1,3 +1,6 @@
+import asyncio
+import random
+
 from discord.ext import commands, tasks
 
 from integrations.instagram import Instagram
@@ -17,6 +20,7 @@ class InstagramCheckScheduler(commands.Cog):
 
     @tasks.loop(minutes=45)
     async def instagram_scheduled_job(self):
+        await asyncio.sleep(random.uniform(0, 600))
         try:
             await self.instagram.check_notifications()
         except Exception as e:
