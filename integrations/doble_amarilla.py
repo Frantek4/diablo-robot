@@ -2,6 +2,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from models.news_source import NewsSource
+from utils.date_format import parse_date_ddmmyyyy, is_recent
 
 
 class DobleAmarillaScraper:
@@ -32,6 +33,8 @@ class DobleAmarillaScraper:
                     soup = BeautifulSoup(html, "lxml")
 
                     for item in self._extract_news(soup):
+                        if item["date"] is None or not is_recent(item["date"]):
+                            continue
                         news_url = self.bot.news_dao.normalize_url(self.domain, item["url"])
                         if not news_url or self.bot.news_dao.exists(news_url):
                             continue
@@ -60,14 +63,17 @@ class DobleAmarillaScraper:
 
             title_tag = article.find("h2", class_="title")
             deck_tag = article.find("h3", class_="deck")
+            date_tag = article.find("div", class_="date")
             if not title_tag:
                 continue
 
+            date_text = date_tag.find("span").get_text(strip=True) if date_tag else None
             items.append({
                 "url": a["href"],
                 "title": title_tag.get_text(strip=True),
                 "description": deck_tag.get_text(strip=True) if deck_tag else "",
                 "image_url": self._extract_image(article),
+                "date": parse_date_ddmmyyyy(date_text) if date_text else None,
             })
 
         return items
