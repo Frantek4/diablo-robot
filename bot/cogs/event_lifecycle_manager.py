@@ -3,6 +3,7 @@ from discord.ext import commands, tasks
 import discord
 from bot.ui.join_voice_button import VoiceJoinView
 from config.settings import settings
+from utils.date_format import to_local
 
 
 class EventLifecycleManager(commands.Cog):
@@ -21,7 +22,7 @@ class EventLifecycleManager(commands.Cog):
         for event in await guild.fetch_scheduled_events():
             if event.status != discord.EventStatus.active or event.id in self._announced_ids:
                 continue
-            end = event.end_time.astimezone(settings.TIMEZONE) if event.end_time else midnight
+            end = to_local(event.end_time) if event.end_time else midnight
             if now >= end:
                 await self._end_event(event)
             else:
@@ -41,7 +42,7 @@ class EventLifecycleManager(commands.Cog):
         for event in guild.scheduled_events:
             if event.status != discord.EventStatus.active:
                 continue
-            end = event.end_time.astimezone(settings.TIMEZONE) if event.end_time else midnight
+            end = to_local(event.end_time) if event.end_time else midnight
             if now >= end:
                 await self._end_event(event)
 

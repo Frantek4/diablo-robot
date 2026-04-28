@@ -1,17 +1,13 @@
-from zoneinfo import ZoneInfo
-
 from discord.ui import View, Button
 from discord import ButtonStyle
 from datetime import datetime
 
-from config.settings import settings
+from utils.date_format import to_local
 
 
 class EventRedirectView(View):
     def __init__(self, guild_id: int, event_id: int, event_datetime: datetime):
-        
-        if event_datetime.tzinfo is None:
-            event_datetime = event_datetime.replace(tzinfo=settings.TIMEZONE)
+        event_datetime = to_local(event_datetime)
         
         self.event_datetime = event_datetime
         

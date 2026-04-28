@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from config.settings import settings
 from models.influencer import InfluencerModel
+from utils.date_format import to_local
 from models.social_media import SocialMedia
 
 class YouTube:
@@ -38,7 +39,7 @@ class YouTube:
                             continue
 
                         try:
-                            published_date = datetime.strptime(entry.published, '%Y-%m-%dT%H:%M:%S%z').astimezone(settings.TIMEZONE)
+                            published_date = to_local(datetime.strptime(entry.published, '%Y-%m-%dT%H:%M:%S%z'))
                             if published_date < one_week_ago:
                                 continue
                         except (ValueError, AttributeError) as e:

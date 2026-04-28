@@ -4,6 +4,7 @@ from typing import Optional
 import re
 from config.settings import settings
 from models.fixture_status import FixtureStatus
+from utils.date_format import parse_datetime, format_datetime, to_local
 
 @dataclass
 class Fixture:
@@ -41,7 +42,7 @@ class Fixture:
             match_id=data["match_id"],
             home_team=data["home_team"],
             away_team=data["away_team"],
-            match_date=data["match_date"] if isinstance(data["match_date"], datetime) else datetime.fromisoformat(data["match_date"]),
+            match_date=parse_datetime(data["match_date"]),
             competition=data["competition"],
             venue=data.get("venue"),
             home_score=data.get("home_score"),
@@ -53,11 +54,10 @@ class Fixture:
         )
 
     def to_description(self) -> str:
-        date_str = self.match_date.strftime("%d/%m/%Y %H:%M")
         return (f"      ⚽    {self.home_team} vs {self.away_team}\n"
                 f"      🏆    {self.competition}\n"
                 f"      🏟️    {self.venue or 'No anunciado'}\n"
-                f"      📅    {date_str}\n"
+                f"      📅    {format_datetime(self.match_date)}\n"
                 f"      ⚖️    {self.referee or 'No anunciado'}\n"
                 f"      📺    {self.tv_channels or 'No anunciado'}")
 
@@ -78,15 +78,14 @@ class Fixture:
 
             venue = venue_match.group(1).strip() if venue_match else None
             if venue == "No anunciado": venue = None
-            
+
             ref = ref_match.group(1).strip() if ref_match else None
             if ref == "No anunciado": ref = None
 
             tv = tv_match.group(1).strip() if tv_match else None
             if tv == "No anunciado": tv = None
 
-            match_dt = datetime.strptime(date_match.group(1), "%d/%m/%Y %H:%M")
-            match_date = match_dt.replace(tzinfo=settings.TIMEZONE)
+            match_date = to_local(datetime.strptime(date_match.group(1), "%d/%m/%Y %H:%M"))
 
             return cls(
                 home_team=teams_match.group(1).strip(),
@@ -103,12 +102,8 @@ class Fixture:
     def get_changes(self, other: 'Fixture') -> str:
         changes = []
 
-        # Comparamos strings para ignorar diferencias de segundos y tzinfo
-        self_date_str = self.match_date.strftime("%d/%m/%Y %H:%M")
-        other_date_str = other.match_date.strftime("%d/%m/%Y %H:%M")
-
-        if self_date_str != other_date_str:
-            changes.append(f"📅: {self_date_str} -> {other_date_str}")
+        if format_datetime(self.match_date) != format_datetime(other.match_date):
+            changes.append(f"📅: {format_datetime(self.match_date)} -> {format_datetime(other.match_date)}")
         if self.venue != other.venue:
             changes.append(f"🏟️: {self.venue or 'No anunciado'} -> {other.venue or 'No anunciado'}")
         if self.referee != other.referee:

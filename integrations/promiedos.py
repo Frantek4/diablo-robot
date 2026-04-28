@@ -5,6 +5,7 @@ from datetime import datetime
 import re
 from config.settings import settings
 from models.fixture import Fixture
+from utils.date_format import to_local
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
@@ -84,7 +85,7 @@ def _parse_match(match_soup: BeautifulSoup, match_id: str) -> Fixture | None:
     else:
         match_datetime = match_datetime.replace(year=now.year + 1)
 
-    match_date = match_datetime.replace(tzinfo=settings.TIMEZONE)
+    match_date = to_local(match_datetime)
 
     venue = _extract_field(soup_str, r'Estadio')
     referee = _extract_field(soup_str, r'Árbitro')
