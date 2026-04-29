@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 import re
@@ -24,6 +25,7 @@ class OleScraper:
         async with aiohttp.ClientSession() as session:
             for url in self.urls:
                 try:
+                    await asyncio.sleep(15)
                     async with session.get(f"{self.domain}/{url}", headers=self.headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                         response.raise_for_status()
                         html = await response.text()

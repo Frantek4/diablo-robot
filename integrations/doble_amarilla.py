@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 
@@ -22,6 +23,7 @@ class DobleAmarillaScraper:
         async with aiohttp.ClientSession() as session:
             for url, label in self.urls.items():
                 try:
+                    await asyncio.sleep(15)
                     async with session.get(
                         f"{self.domain}/{url}",
                         headers=self.headers,

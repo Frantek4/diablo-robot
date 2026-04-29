@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 import re
@@ -22,6 +23,7 @@ class TycSportsScraper:
         async with aiohttp.ClientSession() as session:
             for url in self.urls:
                 try:
+                    await asyncio.sleep(15)
                     full_url = f"{self.domain}/{url}.html"
                     async with session.get(full_url, headers=self.headers, timeout=10) as response:
                         response.raise_for_status()
@@ -35,6 +37,7 @@ class TycSportsScraper:
                         if self.bot.news_dao.exists(news_url):
                             continue
 
+                        await asyncio.sleep(5)
                         detail_data = await self._get_article_details(news_url, session)
                         
                         if not detail_data['title']:
