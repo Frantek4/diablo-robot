@@ -158,7 +158,7 @@ class Twitter:
         if not feed.entries:
             return
 
-        for entry in reversed(feed.entries[:5]):
+        for entry in reversed(feed.entries):
             parsed = parse_entry(entry, influencer)
             if not parsed:
                 tweet_url = entry.get("link", "")
