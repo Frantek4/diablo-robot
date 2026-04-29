@@ -31,7 +31,7 @@ class YouTube:
                             continue
                         feed = feedparser.parse(await response.text())
 
-                    for entry in feed.entries[:3]:
+                    for entry in reversed(feed.entries[:3]):
                         video_url = entry.link
                         normalized_url = self.bot.news_dao.normalize_url(YouTube.domain, video_url)
 
