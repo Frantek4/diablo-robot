@@ -109,7 +109,7 @@ class MusicAgent(commands.Cog):
                 await message.add_reaction("❌")
                 return
 
-        if response == "IGNORAR":
+        if not response or response == "IGNORAR":
             await message.add_reaction("❓")
             self._clear_history(message.author.id)
             return
