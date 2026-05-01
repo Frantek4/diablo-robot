@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     GENERAL_VOICE_CHANNEL_ID: int
     TERMOS_VOICE_CHANNEL_ID: int
     GENERAL_TEXT_CHANNEL_ID: int
+    MUSIC_TEXT_CHANNEL_ID: int
     ANNOUNCEMENTS_TEXT_CHANNEL_ID: int
     COMMENTATOR_TEXT_CHANNEL_ID: int
     CLUB_TEXT_CHANNEL_ID: int
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
     DATABASE_USERNAME: str
     DATABASE_PASSWORD: str
+    DJ_COMMAND_PREFIX: str = "m!"
+    DEEPSEEK_API_KEY: str = ""
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod

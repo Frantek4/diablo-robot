@@ -49,6 +49,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.instagram_check')
         await self.load_extension('bot.listeners.game_role')
         await self.load_extension('bot.listeners.post_match_discussion')
+        await self.load_extension('bot.listeners.music_agent')
         logger.info("Extensiones cargadas")
 
     async def on_ready(self):
