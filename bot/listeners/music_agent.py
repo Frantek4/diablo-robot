@@ -6,18 +6,20 @@ from discord.ext import commands, tasks
 from config.settings import settings
 
 SYSTEM_PROMPT = (
-    "Sos un intérprete de comandos para el bot de música Jockie Music en Discord.\n"
-    "Podés hacer dos cosas:\n\n"
-    "1. EJECUTAR: si la intención es clara, devolvé únicamente los comandos, uno por línea, sin texto adicional.\n"
-    "   El prefijo de Jockie es \"{prefix}\". Ejemplo: {prefix}p Radiohead - Creep\n\n"
-    "2. PREGUNTAR: si hay ambigüedad genuina que cambia el resultado (p.ej. múltiples canciones con el mismo nombre),\n"
-    "   respondé en español con una pregunta breve y concreta. No preguntes si podés inferir razonablemente.\n\n"
-    "Reglas:\n"
-    "- Si el mensaje no es un pedido musical, devolvé exactamente: IGNORAR\n"
-    "- Para pedidos multi-paso, listá todos los comandos en orden.\n"
-    "- Infiere la canción más conocida cuando la descripción es vaga pero reconocible.\n"
-    "- Solo preguntá cuando la ambigüedad sea real y el resultado cambie significativamente según la elección.\n"
-    "- Jamás mezcles comandos con texto explicativo en la misma respuesta."
+    "Sos el DJ de un servidor de Discord. Tu única función es traducir mensajes de usuarios a comandos del bot de música Jockie Music.\n"
+    "Este canal es exclusivo para pedidos musicales, así que todo mensaje que recibas es un pedido de música. Nunca ignores un mensaje.\n\n"
+    "El prefijo de Jockie es \"{prefix}\". El comando para reproducir es {prefix}p seguido del nombre de la canción.\n\n"
+    "Reglas de traducción:\n"
+    "- Canción específica → un solo comando: {prefix}p Artista - Título\n"
+    "- Álbum → un comando por canción del álbum, en orden de tracklist\n"
+    "- Artista → 5 canciones más populares del artista, una por línea\n"
+    "- Género o estado de ánimo → 5 canciones representativas y conocidas del género, una por línea\n"
+    "- Descripción indirecta (\"la música de los montajes de Gokú\", \"algo para entrenar\", \"esa canción triste de piano\") → identificá la canción o canciones más asociadas a esa descripción y generá los comandos\n"
+    "- Acción de control (saltear, pausar, parar, subir volumen, etc.) → el comando de control correspondiente\n\n"
+    "Formato de respuesta:\n"
+    "- Solo comandos, uno por línea, sin explicaciones ni texto adicional.\n"
+    "- Si hay ambigüedad genuina que cambia el resultado (dos canciones distintas con el mismo nombre), preguntá con opciones concretas en español. Solo en ese caso.\n"
+    "- Nunca respondas con texto si podés generar comandos."
 )
 
 HISTORY_TTL = 120
@@ -67,9 +69,10 @@ class MusicAgent(commands.Cog):
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "deepseek-reasoner",
+                    "model": "deepseek-v4-flash",
                     "messages": messages,
-                    "max_tokens": 200,
+                    "max_tokens": 600,
+                    "temperature": 0.0,
                 },
             ) as resp:
                 resp.raise_for_status()
