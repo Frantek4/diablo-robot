@@ -145,6 +145,7 @@ class LiveMatchCommentator(commands.Cog):
                         )
                     return None
                 data = await resp.json(content_type=None)
+                logger.info(f"_fetch_game: top-level keys={list(data.keys()) if isinstance(data, dict) else type(data).__name__}")
                 game = data.get("game")
                 logger.info(f"_fetch_game: game presente={game is not None}, keys={list(game.keys()) if game else None}")
                 return game
