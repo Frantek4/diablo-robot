@@ -1,33 +1,44 @@
 import asyncio
-import re
 import time
+from pathlib import Path
+
 import aiohttp
 import discord
 from discord.ext import commands, tasks
+
 from config.settings import settings
 
+_REF_PATH = Path(__file__).parent.parent.parent / "config" / "jockie_commands.md"
+_COMMANDS_REF = _REF_PATH.read_text(encoding="utf-8") if _REF_PATH.exists() else ""
+
 SYSTEM_PROMPT = (
-    "Sos el DJ de un servidor de Discord. Tu única función es traducir mensajes de usuarios a comandos del bot de música Jockie Music.\n"
-    "Este canal es exclusivo para pedidos musicales, así que todo mensaje que recibas es un pedido de música. Nunca ignores un mensaje.\n\n"
-    "El prefijo de Jockie es \"{prefix}\". El comando para reproducir es {prefix}p seguido del nombre de la canción.\n\n"
-    "Reglas de traducción:\n"
-    "- Canción específica → un solo comando: {prefix}p Artista - Título\n"
-    "- Álbum → un comando por canción del álbum, en orden de tracklist\n"
-    "- Artista → 5 canciones más populares del artista, una por línea\n"
-    "- Género o estado de ánimo → 5 canciones representativas y conocidas del género, una por línea\n"
-    "- Descripción indirecta (\"la música de los montajes de Gokú\", \"algo para entrenar\", \"esa canción triste de piano\") → identificá la canción o canciones más asociadas a esa descripción y generá los comandos\n"
-    "- Acción de control (saltear, pausar, parar, subir volumen, etc.) → el comando de control correspondiente\n\n"
-    "Contexto de cola:\n"
-    "Antes de cada pedido vas a recibir el estado actual de la cola de reproducción. Usalo para interpretar pedidos relativos "
-    "(\"sacá esa\", \"poné algo parecido\", \"saltá todo hasta el rock\") y para evitar duplicar canciones que ya están en cola.\n\n"
-    "Formato de respuesta:\n"
-    "- Solo comandos, uno por línea, sin explicaciones ni texto adicional.\n"
-    "- Si hay ambigüedad genuina que cambia el resultado (dos canciones distintas con el mismo nombre), preguntá con opciones concretas en castellano rioplatense, usando voseo (hablás, querés, podés, etc.). Solo en ese caso.\n"
+    "Sos el DJ de un servidor de Discord. Traducís pedidos en lenguaje natural a comandos de Jockie Music.\n"
+    "Todo mensaje en este canal es un pedido musical o de control.\n\n"
+    "Operás en dos fases:\n"
+    "- INFO: si el pedido requiere conocer el estado de la cola o la canción actual, respondé SOLO con los comandos de información necesarios. Recibirás los resultados.\n"
+    "- ACCIÓN: cuando tenés suficiente contexto, respondé con los comandos a ejecutar.\n"
+    "Nunca mezcles INFO y ACCIÓN en la misma respuesta.\n\n"
+    "Reglas no negociables:\n"
+    "- Artista o género sin canción específica → 5 canciones representativas con {prefix}p, una por línea.\n"
+    "- Álbum → {prefix}album <nombre>, no canción por canción.\n"
+    "- Solo comandos, uno por línea, sin texto adicional.\n"
+    "- Si hay ambigüedad genuina, preguntá en castellano rioplatense con voseo. Solo en ese caso.\n"
     "- Nunca respondas con texto si podés generar comandos."
 )
 
+INFO_COMMANDS = frozenset({
+    "q", "queue", "queue information", "queueinfo", "queue info",
+    "np", "now", "nowplaying", "now playing",
+    "next up", "nextup", "next track", "nextsong", "nexttrack",
+    "upcoming",
+    "history", "recent", "recently played",
+    "session info", "sessioninfo", "session information",
+    "session statistics", "sessionstatistics",
+})
+
 HISTORY_TTL = 120
 MAX_HISTORY_MESSAGES = 20
+MAX_AGENT_ITERATIONS = 3
 
 
 class MusicAgent(commands.Cog):
@@ -67,6 +78,13 @@ class MusicAgent(commands.Cog):
         self._histories.pop(user_id, None)
         self._last_activity.pop(user_id, None)
 
+    def _is_info_command(self, line: str) -> bool:
+        prefix = settings.DJ_COMMAND_PREFIX
+        if not line.startswith(prefix):
+            return False
+        cmd = line[len(prefix):].strip().lower()
+        return any(cmd == ic or cmd.startswith(ic + " ") for ic in INFO_COMMANDS)
+
     async def _send_as_user(self, channel_id: int, content: str):
         resp = await self._session.post(
             f"https://discord.com/api/v10/channels/{channel_id}/messages",
@@ -82,56 +100,35 @@ class MusicAgent(commands.Cog):
             return None
         return "\n".join(f"{m.author.display_name}: {m.content}" for m in msgs)
 
-    async def _fetch_queue(self, channel: discord.TextChannel) -> str | None:
-        pages = []
-        total_pages = 1
-        page = 1
+    async def _execute_info_command(self, channel: discord.TextChannel, cmd: str) -> str | None:
+        try:
+            await self._send_as_user(channel.id, cmd)
+        except Exception:
+            return None
+        try:
+            response = await self.bot.wait_for(
+                "message",
+                check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id and bool(m.embeds or m.content),
+                timeout=10.0,
+            )
+        except asyncio.TimeoutError:
+            return None
+        if response.embeds:
+            embed = response.embeds[0]
+            parts = [p for p in [embed.title, embed.description] if p]
+            parts += [f"{f.name}: {f.value}" for f in embed.fields]
+            return "\n".join(parts) or None
+        return response.content or None
 
-        while page <= min(total_pages, 3):
-            cmd = f"{settings.DJ_COMMAND_PREFIX}queue" if page == 1 else f"{settings.DJ_COMMAND_PREFIX}queue {page}"
-            try:
-                await self._send_as_user(channel.id, cmd)
-            except Exception:
-                break
-
-            try:
-                response = await self.bot.wait_for(
-                    "message",
-                    check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id and bool(m.embeds or m.content),
-                    timeout=10.0,
-                )
-            except asyncio.TimeoutError:
-                break
-
-            if response.embeds:
-                embed = response.embeds[0]
-                parts = [p for p in [embed.title, embed.description] if p]
-                parts += [f"{f.name}: {f.value}" for f in embed.fields]
-                content = "\n".join(parts) or None
-            else:
-                content = response.content or None
-
-            if content:
-                pages.append(content)
-                if page == 1:
-                    match = re.search(r'Page \*\*\d+\*\*/\*\*(\d+)\*\*', content)
-                    if match:
-                        total_pages = int(match.group(1))
-
-            page += 1
-
-        return "\n\n".join(pages) or None
-
-    async def _call_deepseek(self, user_id: int, queue_context: str | None, chat_history: str | None) -> str:
+    async def _call_ai(self, user_id: int, chat_history: str | None) -> str:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(prefix=settings.DJ_COMMAND_PREFIX)}]
-        if queue_context:
-            messages.append({"role": "user", "content": f"[Cola actual]\n{queue_context}"})
-            messages.append({"role": "assistant", "content": "Entendido, tengo el estado de la cola."})
+        if _COMMANDS_REF:
+            messages.append({"role": "user", "content": f"[Referencia de comandos]\n{_COMMANDS_REF.replace('{prefix}', settings.DJ_COMMAND_PREFIX)}"})
+            messages.append({"role": "assistant", "content": "Entendido."})
         if chat_history:
             messages.append({"role": "user", "content": (
-                f"[Historial del canal - últimos mensajes]\n{chat_history}\n\n"
-                "Este historial es solo contexto. El pedido a procesar es el último mensaje; "
-                "el historial solo es relevante si hay una referencia tácita a algo anterior."
+                f"[Historial del canal]\n{chat_history}\n\n"
+                "Solo es contexto. El pedido a procesar es el último mensaje del historial del usuario."
             )})
             messages.append({"role": "assistant", "content": "Entendido."})
         messages.extend(self._histories.get(user_id, []))
@@ -153,13 +150,55 @@ class MusicAgent(commands.Cog):
             data = await resp.json()
             return data["choices"][0]["message"]["content"].strip()
 
+    async def _agent_loop(
+        self,
+        user_id: int,
+        channel: discord.TextChannel,
+        chat_history: str | None,
+    ) -> tuple[list[str], str | None]:
+        prefix = settings.DJ_COMMAND_PREFIX
+
+        for i in range(MAX_AGENT_ITERATIONS):
+            response = await self._call_ai(user_id, chat_history if i == 0 else None)
+
+            if not response:
+                return [], None
+
+            lines = [line.strip() for line in response.splitlines() if line.strip()]
+            if not lines:
+                return [], None
+
+            if all(line.startswith(prefix) for line in lines):
+                info_lines = [l for l in lines if self._is_info_command(l)]
+                action_lines = [l for l in lines if not self._is_info_command(l)]
+
+                if info_lines and not action_lines:
+                    results = []
+                    for cmd in info_lines:
+                        result = await self._execute_info_command(channel, cmd)
+                        if result:
+                            results.append(f"[{cmd}]\n{result}")
+                    self._add_to_history(user_id, "assistant", "\n".join(info_lines))
+                    self._add_to_history(
+                        user_id, "user",
+                        "\n\n".join(results) if results else "Sin respuesta de Jockie."
+                    )
+                    continue
+
+                return action_lines or lines, None
+
+            if response == "IGNORAR":
+                return [], None
+            return [], response
+
+        return [], None
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
         if not settings.MUSIC_TEXT_CHANNEL_ID or message.channel.id != settings.MUSIC_TEXT_CHANNEL_ID:
             return
-
         if message.content.startswith(settings.DJ_COMMAND_PREFIX):
             return
 
@@ -187,12 +226,11 @@ class MusicAgent(commands.Cog):
             await self.bot.messager.log(f"No pude mover al proxy al canal de voz en el agente DJ: {e}", level="WARNING", exc=e)
 
         async with message.channel.typing():
-            queue_context, chat_history = await asyncio.gather(
-                self._fetch_queue(message.channel),
-                self._fetch_channel_history(message.channel, message),
-            )
+            chat_history = await self._fetch_channel_history(message.channel, message)
             try:
-                response = await self._call_deepseek(message.author.id, queue_context, chat_history)
+                action_commands, reply = await self._agent_loop(
+                    message.author.id, message.channel, chat_history
+                )
             except aiohttp.ClientResponseError as e:
                 if e.status == 402:
                     await message.reply("Vas a tener que usar comandos porque el admin le debe plata a los chinos.")
@@ -207,26 +245,22 @@ class MusicAgent(commands.Cog):
                 await return_to_idle()
                 return
 
-        if not response or response == "IGNORAR":
+        if not action_commands and reply is None:
             await message.add_reaction("❓")
             self._clear_history(message.author.id)
             await return_to_idle()
             return
 
-        prefix = settings.DJ_COMMAND_PREFIX
-        lines = [line.strip() for line in response.splitlines() if line.strip()]
-        is_commands = bool(lines) and all(line.startswith(prefix) for line in lines)
-
-        if is_commands:
+        if action_commands:
             try:
-                for cmd in lines:
+                for cmd in action_commands:
                     await self._send_as_user(message.channel.id, cmd)
                     await asyncio.sleep(0.5)
             except Exception as e:
                 await self.bot.messager.log(f"No pude enviar comandos con el usuario proxy en el agente DJ: {e}", level="WARNING", exc=e)
                 await message.reply(
                     "No pude ejecutar los comandos automáticamente. Copiá y pegá esto:\n"
-                    + "\n".join(f"`{cmd}`" for cmd in lines)
+                    + "\n".join(f"`{cmd}`" for cmd in action_commands)
                 )
                 self._clear_history(message.author.id)
                 await return_to_idle()
@@ -235,8 +269,8 @@ class MusicAgent(commands.Cog):
             await message.add_reaction("✅")
             self._clear_history(message.author.id)
         else:
-            self._add_to_history(message.author.id, "assistant", response)
-            await message.reply(response)
+            self._add_to_history(message.author.id, "assistant", reply)
+            await message.reply(reply)
 
         await return_to_idle()
 
