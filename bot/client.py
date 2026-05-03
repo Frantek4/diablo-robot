@@ -42,7 +42,8 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
         await self.load_extension('bot.scheduled.fixture_check')
-        await self.load_extension('bot.scheduled.live_match_scheduler')
+        await self.load_extension('bot.cogs.live_match_commentator')
+        await self.load_extension('bot.scheduled.commentator_scheduler')
         await self.load_extension('bot.scheduled.news_check')
         await self.load_extension('bot.scheduled.twitter_check')
         await self.load_extension('bot.scheduled.youtube_check')
@@ -54,7 +55,7 @@ class DiabloRobot(commands.Bot):
 
     async def on_ready(self):
         self.get_cog('FixtureCheckScheduler').start_scheduled_job()
-        self.get_cog('LiveMatchScheduler').start_scheduled_job()
+        self.get_cog('CommentatorScheduler').start_scheduled_job()
         self.get_cog('NewsCheckScheduler').start_scheduled_job()
         self.get_cog('TwitterCheckScheduler').start_scheduled_job()
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
