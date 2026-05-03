@@ -1,5 +1,4 @@
 import asyncio
-import json
 import time
 from pathlib import Path
 
@@ -17,42 +16,21 @@ SYSTEM_PROMPT = (
     "Sos el DJ de un servidor de Discord. Traducís pedidos en lenguaje natural a comandos de Jockie Music.\n"
     "Todo mensaje en este canal es un pedido musical o de control.\n\n"
     "Podés operar en tres modos dentro de una misma solicitud:\n"
-    "- BUSCAR: usá la herramienta web_search cuando necesités identificar una canción por letra, "
-    "buscar discografía reciente, o cualquier información de actualidad antes de actuar. "
-    "Preferí buscar antes de inventar o adivinar.\n"
+    "- BUSCAR: si necesitás identificar una canción por letra, buscar discografía reciente o "
+    "cualquier información de actualidad, respondé con una sola línea: WEBSEARCH: <términos de búsqueda>. "
+    "Recibirás los resultados y podrás actuar. Preferí buscar antes de inventar o adivinar.\n"
     "- INFO: si el pedido requiere conocer el estado de la cola o la canción actual, respondé SOLO "
     "con los comandos de información necesarios ({prefix}queue, {prefix}now playing, etc.). Recibirás los resultados.\n"
     "- ACCIÓN: cuando tenés suficiente contexto, respondé con los comandos a ejecutar.\n"
-    "Nunca mezcles INFO y ACCIÓN en la misma respuesta.\n\n"
+    "Nunca mezcles modos en la misma respuesta.\n\n"
     "Reglas no negociables:\n"
     "- Artista o género sin canción específica → 5 canciones representativas con {prefix}p, una por línea.\n"
-    "- Letra de canción → usá web_search para identificarla si no estás seguro.\n"
+    "- Letra de canción → usá WEBSEARCH para identificarla si no estás seguro.\n"
     "- Solo comandos, uno por línea, sin texto adicional.\n"
     "- Si hay ambigüedad genuina, preguntá en castellano rioplatense con voseo. Solo en ese caso.\n"
     "- Nunca respondas con texto si podés generar comandos."
 )
 
-WEB_SEARCH_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "web_search",
-        "description": (
-            "Busca información en la web. Usalo para: identificar canciones por letra, "
-            "buscar el último álbum de un artista, encontrar hits recientes, o cualquier "
-            "información de actualidad necesaria para satisfacer el pedido."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "La consulta. Escribila en el idioma más apropiado (inglés para artistas internacionales).",
-                }
-            },
-            "required": ["query"],
-        },
-    },
-}
 
 INFO_COMMANDS = frozenset({
     "queue",           # también captura "queue information" vía startswith
@@ -178,15 +156,13 @@ class MusicAgent(commands.Cog):
             json={
                 "model": "deepseek-v4-flash",
                 "messages": messages,
-                "tools": [WEB_SEARCH_TOOL],
-                "tool_choice": "auto",
                 "max_tokens": 600,
                 "temperature": 0.0,
             },
         ) as resp:
             resp.raise_for_status()
             data = await resp.json()
-            return data["choices"][0]["message"]
+            return data["choices"][0]["message"]["content"].strip()
 
     async def _agent_loop(
         self,
@@ -198,34 +174,18 @@ class MusicAgent(commands.Cog):
         did_work = False
 
         for i in range(MAX_AGENT_ITERATIONS):
-            message = await self._call_ai(user_id, chat_history if i == 0 else None)
+            response = await self._call_ai(user_id, chat_history if i == 0 else None)
 
-            # BUSCAR: tool call phase
-            if message.get("tool_calls"):
+            # BUSCAR phase
+            if response.startswith("WEBSEARCH:"):
                 did_work = True
-                self._push_to_history(user_id, {
-                    "role": "assistant",
-                    "content": message.get("content"),
-                    "tool_calls": message["tool_calls"],
-                })
-                for tool_call in message["tool_calls"]:
-                    if tool_call["function"]["name"] != "web_search":
-                        continue
-                    try:
-                        query = json.loads(tool_call["function"]["arguments"])["query"]
-                    except (json.JSONDecodeError, KeyError):
-                        continue
-                    result = await web_search(query)
-                    self._push_to_history(user_id, {
-                        "role": "tool",
-                        "tool_call_id": tool_call["id"],
-                        "content": result,
-                    })
+                query = response[len("WEBSEARCH:"):].strip()
+                result = await web_search(query)
+                self._add_to_history(user_id, "assistant", response)
+                self._add_to_history(user_id, "user", f"[Resultados de búsqueda]\n{result}")
                 continue
 
-            response = (message.get("content") or "").strip()
-
-            # Empty after tool use or INFO phase = implicit success (album queued, etc.)
+            # Empty after WEBSEARCH or INFO phase = implicit success (album queued, etc.)
             if not response:
                 return ([], "") if did_work else ([], None)
 
