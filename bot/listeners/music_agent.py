@@ -176,27 +176,26 @@ class MusicAgent(commands.Cog):
         chat_history: str | None,
     ) -> tuple[list[str], str | None]:
         prefix = settings.DJ_COMMAND_PREFIX
-        did_work = False
+        did_info = False
 
         for i in range(MAX_AGENT_ITERATIONS):
             response = await self._call_ai(user_id, chat_history if i == 0 else None)
 
             # BUSCAR phase
             if response.startswith("WEBSEARCH:"):
-                did_work = True
                 query = response[len("WEBSEARCH:"):].strip()
                 result = await web_search(query)
                 self._add_to_history(user_id, "assistant", response)
                 self._add_to_history(user_id, "user", f"[Resultados de búsqueda]\n{result}")
                 continue
 
-            # Empty after WEBSEARCH or INFO phase = implicit success (album queued, etc.)
+            # Empty after INFO phase = implicit success (album/playlist queued via selection, etc.)
             if not response:
-                return ([], "") if did_work else ([], None)
+                return ([], "") if did_info else ([], None)
 
             lines = [line.strip() for line in response.splitlines() if line.strip()]
             if not lines:
-                return ([], "") if did_work else ([], None)
+                return ([], "") if did_info else ([], None)
 
             if all(line.startswith(prefix) for line in lines):
                 info_lines = [l for l in lines if self._is_info_command(l)]
@@ -204,7 +203,7 @@ class MusicAgent(commands.Cog):
 
                 # INFO phase
                 if info_lines and not action_lines:
-                    did_work = True
+                    did_info = True
                     results = []
                     for cmd in info_lines:
                         result = await self._execute_info_command(channel, cmd)
