@@ -67,10 +67,9 @@ class MusicAgent(commands.Cog):
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "deepseek-v4-flash",
+                    "model": "deepseek-reasoner",
                     "messages": messages,
                     "max_tokens": 200,
-                    "temperature": 0.0,
                 },
             ) as resp:
                 resp.raise_for_status()
