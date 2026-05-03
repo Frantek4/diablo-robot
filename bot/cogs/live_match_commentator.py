@@ -1,14 +1,16 @@
 import asyncio
 import aiohttp
 import json
+import logging
 import discord
 from discord.ext import commands
 from config.settings import settings
 from models.fixture_status import FixtureStatus
 
+logger = logging.getLogger(__name__)
+
 
 def _safe_score(value) -> int:
-    """Returns the score as int, or 0 if None/negative (placeholder value)."""
     return int(value) if value is not None and float(value) >= 0 else 0
 
 
@@ -26,44 +28,60 @@ class LiveMatchCommentator(commands.Cog):
         self._tracking_tasks.clear()
 
     async def start_tracking(self, match_id: str, fixture_id: str):
+        logger.info(f"start_tracking llamado: match_id={match_id} fixture_id={fixture_id}")
         if match_id in self.active_trackers:
+            logger.info(f"start_tracking: {match_id} ya está en active_trackers, ignorando")
             return
         task = asyncio.create_task(self._track_match(match_id, fixture_id))
         self._tracking_tasks.add(task)
         task.add_done_callback(self._tracking_tasks.discard)
+        logger.info(f"start_tracking: tarea creada para {match_id}")
 
     async def _track_match(self, match_id: str, fixture_id: str):
+        logger.info(f"_track_match: iniciando loop para {match_id}")
         self.active_trackers[match_id] = {
             "seen_events": set(),
             "lineups_sent": False,
             "low_coverage_warned": False,
         }
-        await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
+        if self.bot.messager:
+            await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
         try:
             async with aiohttp.ClientSession() as session:
                 while True:
+                    logger.info(f"_track_match: ciclo fetch para {match_id}")
                     try:
                         game = await self._fetch_game(session, match_id)
                         if game is None:
+                            logger.warning(f"_track_match: _fetch_game devolvió None para {match_id}, reintentando en 30s")
                             await asyncio.sleep(30)
                             continue
-
-                        if not self.active_trackers[match_id]["lineups_sent"]:
-                            lineups_data = game.get("players", {}).get("lineups", {})
-                            if lineups_data:
-                                await self._send_lineups(game)
-                                self.active_trackers[match_id]["lineups_sent"] = True
 
                         status_enum = game.get("status", {}).get("enum", 0)
                         status_name = game.get("status", {}).get("name", "")
                         game_time = game.get("game_time_status_to_display", "?")
                         scores = game.get("scores", [0, 0])
                         seen_count = len(self.active_trackers[match_id]["seen_events"])
-                        await self.bot.messager.log(
-                            f"[relator] {match_id} | {status_name} {game_time} | "
-                            f"{_safe_score(scores[0])}-{_safe_score(scores[1])} | "
-                            f"eventos vistos: {seen_count}"
+
+                        logger.info(
+                            f"_track_match: {match_id} | status={status_name}({status_enum}) "
+                            f"tiempo={game_time} | marcador={_safe_score(scores[0])}-{_safe_score(scores[1])} "
+                            f"| eventos vistos={seen_count}"
                         )
+                        if self.bot.messager:
+                            await self.bot.messager.log(
+                                f"[relator] {match_id} | {status_name} {game_time} | "
+                                f"{_safe_score(scores[0])}-{_safe_score(scores[1])} | "
+                                f"eventos vistos: {seen_count}"
+                            )
+
+                        if not self.active_trackers[match_id]["lineups_sent"]:
+                            lineups_data = game.get("players", {}).get("lineups", {})
+                            logger.info(f"_track_match: lineups_data presente={bool(lineups_data)}")
+                            if lineups_data:
+                                await self._send_lineups(game)
+                                self.active_trackers[match_id]["lineups_sent"] = True
+                                logger.info(f"_track_match: formaciones enviadas para {match_id}")
 
                         await self._process_events(match_id, game)
 
@@ -72,55 +90,72 @@ class LiveMatchCommentator(commands.Cog):
                             for row in stage.get("rows", [])
                             if row.get("events")
                         )
+                        logger.info(f"_track_match: has_real_events={has_real_events}")
+
                         if (status_enum in (1, 2)
-                                and "entretiempo" not in status_name
+                                and "entretiempo" not in status_name.lower()
                                 and not has_real_events
                                 and not self.active_trackers[match_id]["low_coverage_warned"]):
-                            scores = game.get('scores', [0, 0])
-                            await self.bot.messager.log(
-                                f"Estoy siguiendo el partido {match_id} pero Promiedos no reporta eventos "
-                                f"(baja cobertura). Marcador: {_safe_score(scores[0])}-{_safe_score(scores[1])}.",
-                                level="WARNING"
-                            )
+                            logger.warning(f"_track_match: baja cobertura detectada para {match_id}")
+                            if self.bot.messager:
+                                await self.bot.messager.log(
+                                    f"Estoy siguiendo el partido {match_id} pero Promiedos no reporta eventos "
+                                    f"(baja cobertura). Marcador: {_safe_score(scores[0])}-{_safe_score(scores[1])}.",
+                                    level="WARNING"
+                                )
                             self.active_trackers[match_id]["low_coverage_warned"] = True
 
                         if status_enum == 3:
+                            logger.info(f"_track_match: partido {match_id} finalizado, cerrando loop")
                             teams = game.get("teams", [{}, {}])
-                            scores = game.get('scores', [0, 0])
                             score_home = _safe_score(scores[0])
                             score_away = _safe_score(scores[1])
                             home_name = teams[0].get('name', 'Local')
                             away_name = teams[1].get('name', 'Visitante')
-                            await self.bot.messager.commentator_update(
-                                f"Final del partido. {home_name} {score_home} - {score_away} {away_name}"
-                            )
+                            if self.bot.messager:
+                                await self.bot.messager.commentator_update(
+                                    f"Final del partido. {home_name} {score_home} - {score_away} {away_name}"
+                                )
                             self.bot.fixture_dao.update_score(fixture_id, score_home, score_away, FixtureStatus.FINISHED)
                             break
 
                     except asyncio.CancelledError:
+                        logger.info(f"_track_match: tarea cancelada para {match_id}")
                         raise
                     except Exception as e:
-                        await self.bot.messager.log(f"El relator se escabió en {match_id}: {e}", level="ERROR", exc=e)
+                        logger.exception(f"_track_match: excepción en ciclo para {match_id}: {e}")
+                        if self.bot.messager:
+                            await self.bot.messager.log(f"El relator se escabió en {match_id}: {e}", level="ERROR", exc=e)
 
                     await asyncio.sleep(30)
         finally:
+            logger.info(f"_track_match: finalizando, removiendo {match_id} de active_trackers")
             self.active_trackers.pop(match_id, None)
 
     async def _fetch_game(self, session: aiohttp.ClientSession, match_id: str) -> dict | None:
+        url = f"{self.api_url}{match_id}"
+        logger.info(f"_fetch_game: GET {url}")
         try:
-            async with session.get(f"{self.api_url}{match_id}", headers=self.headers) as resp:
+            async with session.get(url, headers=self.headers) as resp:
+                logger.info(f"_fetch_game: status HTTP {resp.status} para {match_id}")
                 if resp.status != 200:
-                    await self.bot.messager.log(
-                        f"La API de Promiedos devolvió {resp.status} para {match_id}.", level="WARNING"
-                    )
+                    if self.bot.messager:
+                        await self.bot.messager.log(
+                            f"La API de Promiedos devolvió {resp.status} para {match_id}.", level="WARNING"
+                        )
                     return None
                 data = await resp.json(content_type=None)
-                return data.get("game")
+                game = data.get("game")
+                logger.info(f"_fetch_game: game presente={game is not None}, keys={list(game.keys()) if game else None}")
+                return game
         except Exception as e:
-            await self.bot.messager.log(f"Falló la llamada a la API para {match_id}: {e}", level="ERROR", exc=e)
+            logger.exception(f"_fetch_game: excepción para {match_id}: {e}")
+            if self.bot.messager:
+                await self.bot.messager.log(f"Falló la llamada a la API para {match_id}: {e}", level="ERROR", exc=e)
             return None
 
     async def _send_lineups(self, game: dict):
+        logger.info("_send_lineups: armando embed de formaciones")
         embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.blue())
         for team in game.get("players", {}).get("lineups", {}).get("teams", []):
             team_name = game["teams"][team["team_num"] - 1]["name"]
@@ -131,10 +166,14 @@ class LiveMatchCommentator(commands.Cog):
 
     async def _process_events(self, match_id: str, game: dict):
         teams = game.get("teams", [])
-        for stage in game.get("events", []):
+        stages = game.get("events", [])
+        logger.info(f"_process_events: {len(stages)} etapas para {match_id}")
+        for stage in stages:
             stage_name = stage.get("name")
             stage_key = f"stage_{stage_name}"
             scores = stage.get('scores', [0, 0])
+            rows = stage.get("rows", [])
+            logger.info(f"_process_events: etapa '{stage_name}', show_title={stage.get('show_stage_title')}, scores={scores}, rows={len(rows)}")
 
             if (stage_key not in self.active_trackers[match_id]["seen_events"]
                     and stage.get("show_stage_title", False)
@@ -143,12 +182,13 @@ class LiveMatchCommentator(commands.Cog):
                 score_away = _safe_score(scores[1])
                 home_name = teams[0].get("name", "Local") if teams else "Local"
                 away_name = teams[1].get("name", "Visitante") if len(teams) > 1 else "Visitante"
+                logger.info(f"_process_events: anunciando etapa '{stage_name}'")
                 await self.bot.messager.commentator_update(
                     f"{stage_name}. {home_name} {score_home} - {score_away} {away_name}"
                 )
                 self.active_trackers[match_id]["seen_events"].add(stage_key)
 
-            for row in stage.get("rows", []):
+            for row in rows:
                 time = row.get("time")
                 for event in row.get("events", []):
                     event_type = event.get("type")
@@ -161,6 +201,7 @@ class LiveMatchCommentator(commands.Cog):
                     team_idx = event.get("team", 1) - 1
                     team_name = teams[team_idx]["name"] if team_idx < len(teams) else "Desconocido"
                     msg = self._format_event(time, event_type, event.get("texts", []), team_name)
+                    logger.info(f"_process_events: evento nuevo type={event_type} time={time} team={team_name} -> msg={msg!r}")
 
                     if msg:
                         await self.bot.messager.commentator_update(msg)
