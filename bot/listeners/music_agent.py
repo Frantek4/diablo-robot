@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 import aiohttp
 import discord
@@ -82,26 +83,44 @@ class MusicAgent(commands.Cog):
         return "\n".join(f"{m.author.display_name}: {m.content}" for m in msgs)
 
     async def _fetch_queue(self, channel: discord.TextChannel) -> str | None:
-        try:
-            await self._send_as_user(channel.id, f"{settings.DJ_COMMAND_PREFIX}queue")
-        except Exception:
-            return None
-        try:
-            response = await self.bot.wait_for(
-                "message",
-                check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id and bool(m.embeds or m.content),
-                timeout=10.0,
-            )
-        except asyncio.TimeoutError:
-            return None
+        pages = []
+        total_pages = 1
+        page = 1
 
-        if response.embeds:
-            embed = response.embeds[0]
-            parts = [p for p in [embed.title, embed.description] if p]
-            parts += [f"{f.name}: {f.value}" for f in embed.fields]
-            return "\n".join(parts) or None
+        while page <= min(total_pages, 3):
+            cmd = f"{settings.DJ_COMMAND_PREFIX}queue" if page == 1 else f"{settings.DJ_COMMAND_PREFIX}queue {page}"
+            try:
+                await self._send_as_user(channel.id, cmd)
+            except Exception:
+                break
 
-        return response.content or None
+            try:
+                response = await self.bot.wait_for(
+                    "message",
+                    check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id and bool(m.embeds or m.content),
+                    timeout=10.0,
+                )
+            except asyncio.TimeoutError:
+                break
+
+            if response.embeds:
+                embed = response.embeds[0]
+                parts = [p for p in [embed.title, embed.description] if p]
+                parts += [f"{f.name}: {f.value}" for f in embed.fields]
+                content = "\n".join(parts) or None
+            else:
+                content = response.content or None
+
+            if content:
+                pages.append(content)
+                if page == 1:
+                    match = re.search(r'Page \*\*\d+\*\*/\*\*(\d+)\*\*', content)
+                    if match:
+                        total_pages = int(match.group(1))
+
+            page += 1
+
+        return "\n\n".join(pages) or None
 
     async def _call_deepseek(self, user_id: int, queue_context: str | None, chat_history: str | None) -> str:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(prefix=settings.DJ_COMMAND_PREFIX)}]
