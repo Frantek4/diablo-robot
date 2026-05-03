@@ -151,6 +151,22 @@ class MusicAgent(commands.Cog):
 
         self._add_to_history(message.author.id, "user", message.content)
 
+        proxy = message.guild.get_member(settings.NOT_ROBOT_DEVIL_USER_ID)
+        idle_channel = message.guild.get_channel(settings.IDLE_VOICE_CHANNEL_ID)
+
+        async def return_to_idle():
+            try:
+                await asyncio.sleep(2)
+                await proxy.edit(voice_channel=idle_channel)
+            except Exception as e:
+                await self.bot.messager.log(f"No pude devolver al proxy a Durmiendo en el agente DJ: {e}", level="WARNING", exc=e)
+
+        try:
+            await proxy.edit(voice_channel=member.voice.channel)
+            await asyncio.sleep(1)
+        except Exception as e:
+            await self.bot.messager.log(f"No pude mover al proxy al canal de voz en el agente DJ: {e}", level="WARNING", exc=e)
+
         async with message.channel.typing():
             queue_context, chat_history = await asyncio.gather(
                 self._fetch_queue(message.channel),
@@ -161,18 +177,21 @@ class MusicAgent(commands.Cog):
             except aiohttp.ClientResponseError as e:
                 if e.status == 402:
                     await message.reply("Vas a tener que usar comandos porque el admin le debe plata a los chinos.")
-                    return
-                await self.bot.messager.log(f"No pude llamar a DeepSeek en el agente DJ: {e}", level="ERROR", exc=e)
-                await message.add_reaction("❌")
+                else:
+                    await self.bot.messager.log(f"No pude llamar a DeepSeek en el agente DJ: {e}", level="ERROR", exc=e)
+                    await message.add_reaction("❌")
+                await return_to_idle()
                 return
             except Exception as e:
                 await self.bot.messager.log(f"No pude llamar a DeepSeek en el agente DJ: {e}", level="ERROR", exc=e)
                 await message.add_reaction("❌")
+                await return_to_idle()
                 return
 
         if not response or response == "IGNORAR":
             await message.add_reaction("❓")
             self._clear_history(message.author.id)
+            await return_to_idle()
             return
 
         prefix = settings.DJ_COMMAND_PREFIX
@@ -180,13 +199,6 @@ class MusicAgent(commands.Cog):
         is_commands = bool(lines) and all(line.startswith(prefix) for line in lines)
 
         if is_commands:
-            proxy = message.guild.get_member(settings.NOT_ROBOT_DEVIL_USER_ID)
-            try:
-                await proxy.edit(voice_channel=member.voice.channel)
-                await asyncio.sleep(1)
-            except Exception as e:
-                await self.bot.messager.log(f"No pude mover al proxy al canal de voz en el agente DJ: {e}", level="WARNING", exc=e)
-
             try:
                 for cmd in lines:
                     await self._send_as_user(message.channel.id, cmd)
@@ -198,20 +210,16 @@ class MusicAgent(commands.Cog):
                     + "\n".join(f"`{cmd}`" for cmd in lines)
                 )
                 self._clear_history(message.author.id)
+                await return_to_idle()
                 return
-
-            try:
-                await asyncio.sleep(2)
-                idle_channel = message.guild.get_channel(settings.IDLE_VOICE_CHANNEL_ID)
-                await proxy.edit(voice_channel=idle_channel)
-            except Exception as e:
-                await self.bot.messager.log(f"No pude devolver al proxy a Durmiendo en el agente DJ: {e}", level="WARNING", exc=e)
 
             await message.add_reaction("✅")
             self._clear_history(message.author.id)
         else:
             self._add_to_history(message.author.id, "assistant", response)
             await message.reply(response)
+
+        await return_to_idle()
 
 
 async def setup(bot: commands.Bot):
