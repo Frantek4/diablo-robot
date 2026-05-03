@@ -31,7 +31,8 @@ SYSTEM_PROMPT = (
     "- Artista o género sin canción específica → 5 canciones representativas con {prefix}p, una por línea.\n"
     "- Letra de canción → usá WEBSEARCH para identificarla si no estás seguro.\n"
     "- Solo comandos, uno por línea, sin texto adicional.\n"
-    "- Cuando recibís un listado numerado de {prefix}album o {prefix}playlist, respondé únicamente con el número de la opción correcta (sin prefijo ni texto).\n"
+    "- Cuando recibís un listado numerado de {prefix}album o {prefix}playlist, respondé únicamente con el número de la opción correcta (sin prefijo ni texto). "
+    "Si en cambio Jockie confirma directamente que agregó el álbum o playlist (ves 'Added' en la respuesta), no respondas nada.\n"
     "- Si hay ambigüedad genuina, preguntá en castellano rioplatense con voseo. Solo en ese caso.\n"
     "- Nunca respondas con texto si podés generar comandos."
 )
@@ -232,7 +233,7 @@ class MusicAgent(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot:
+        if message.author.bot or message.author.id == settings.NOT_ROBOT_DEVIL_USER_ID:
             return
         if not settings.MUSIC_TEXT_CHANNEL_ID or message.channel.id != settings.MUSIC_TEXT_CHANNEL_ID:
             return
