@@ -35,10 +35,16 @@ class MusicAgent(commands.Cog):
         self.bot = bot
         self._histories: dict[int, list[dict]] = {}
         self._last_activity: dict[int, float] = {}
+        self._session: aiohttp.ClientSession | None = None
         self._cleanup_expired.start()
 
-    def cog_unload(self):
+    async def cog_load(self):
+        self._session = aiohttp.ClientSession()
+
+    async def cog_unload(self):
         self._cleanup_expired.cancel()
+        if self._session:
+            await self._session.close()
 
     @tasks.loop(seconds=30)
     async def _cleanup_expired(self):
@@ -61,13 +67,12 @@ class MusicAgent(commands.Cog):
         self._last_activity.pop(user_id, None)
 
     async def _send_as_user(self, channel_id: int, content: str):
-        async with aiohttp.ClientSession() as session:
-            resp = await session.post(
-                f"https://discord.com/api/v10/channels/{channel_id}/messages",
-                headers={"Authorization": settings.NOT_ROBOT_DEVIL_USER_TOKEN},
-                json={"content": content},
-            )
-            resp.raise_for_status()
+        resp = await self._session.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages",
+            headers={"Authorization": settings.NOT_ROBOT_DEVIL_USER_TOKEN},
+            json={"content": content},
+        )
+        resp.raise_for_status()
 
     async def _fetch_channel_history(self, channel: discord.TextChannel, before: discord.Message) -> str | None:
         msgs = [m async for m in channel.history(limit=20, before=before) if m.content]
@@ -112,23 +117,22 @@ class MusicAgent(commands.Cog):
             messages.append({"role": "assistant", "content": "Entendido."})
         messages.extend(self._histories.get(user_id, []))
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://api.deepseek.com/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "deepseek-v4-flash",
-                    "messages": messages,
-                    "max_tokens": 600,
-                    "temperature": 0.0,
-                },
-            ) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                return data["choices"][0]["message"]["content"].strip()
+        async with self._session.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "deepseek-v4-flash",
+                "messages": messages,
+                "max_tokens": 600,
+                "temperature": 0.0,
+            },
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+            return data["choices"][0]["message"]["content"].strip()
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
