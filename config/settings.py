@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     DATABASE_USERNAME: str
     DATABASE_PASSWORD: str
     DJ_COMMAND_PREFIX: str = "m!"
+    NOT_ROBOT_DEVIL_USER_TOKEN: str
+    NOT_ROBOT_DEVIL_USER_ID: int
     DEEPSEEK_API_KEY: str = ""
 
     @field_validator("TIMEZONE", mode="before")

@@ -16,9 +16,12 @@ SYSTEM_PROMPT = (
     "- Género o estado de ánimo → 5 canciones representativas y conocidas del género, una por línea\n"
     "- Descripción indirecta (\"la música de los montajes de Gokú\", \"algo para entrenar\", \"esa canción triste de piano\") → identificá la canción o canciones más asociadas a esa descripción y generá los comandos\n"
     "- Acción de control (saltear, pausar, parar, subir volumen, etc.) → el comando de control correspondiente\n\n"
+    "Contexto de cola:\n"
+    "Antes de cada pedido vas a recibir el estado actual de la cola de reproducción. Usalo para interpretar pedidos relativos "
+    "(\"sacá esa\", \"poné algo parecido\", \"saltá todo hasta el rock\") y para evitar duplicar canciones que ya están en cola.\n\n"
     "Formato de respuesta:\n"
     "- Solo comandos, uno por línea, sin explicaciones ni texto adicional.\n"
-    "- Si hay ambigüedad genuina que cambia el resultado (dos canciones distintas con el mismo nombre), preguntá con opciones concretas en español. Solo en ese caso.\n"
+    "- Si hay ambigüedad genuina que cambia el resultado (dos canciones distintas con el mismo nombre), preguntá con opciones concretas en castellano rioplatense, usando voseo (hablás, querés, podés, etc.). Solo en ese caso.\n"
     "- Nunca respondas con texto si podés generar comandos."
 )
 
@@ -57,8 +60,53 @@ class MusicAgent(commands.Cog):
         self._histories.pop(user_id, None)
         self._last_activity.pop(user_id, None)
 
-    async def _call_deepseek(self, user_id: int) -> str:
+    async def _send_as_user(self, channel_id: int, content: str):
+        async with aiohttp.ClientSession() as session:
+            resp = await session.post(
+                f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                headers={"Authorization": settings.NOT_ROBOT_DEVIL_USER_TOKEN},
+                json={"content": content},
+            )
+            resp.raise_for_status()
+
+    async def _fetch_channel_history(self, channel: discord.TextChannel, before: discord.Message) -> str | None:
+        msgs = [m async for m in channel.history(limit=20, before=before) if m.content]
+        msgs.reverse()
+        if not msgs:
+            return None
+        return "\n".join(f"{m.author.display_name}: {m.content}" for m in msgs)
+
+    async def _fetch_queue(self, channel: discord.TextChannel) -> str | None:
+        await self._send_as_user(channel.id, f"{settings.DJ_COMMAND_PREFIX}queue")
+        try:
+            response = await self.bot.wait_for(
+                "message",
+                check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id,
+                timeout=5.0,
+            )
+        except asyncio.TimeoutError:
+            return None
+
+        if response.embeds:
+            embed = response.embeds[0]
+            parts = [p for p in [embed.title, embed.description] if p]
+            parts += [f"{f.name}: {f.value}" for f in embed.fields]
+            return "\n".join(parts) or None
+
+        return response.content or None
+
+    async def _call_deepseek(self, user_id: int, queue_context: str | None, chat_history: str | None) -> str:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(prefix=settings.DJ_COMMAND_PREFIX)}]
+        if queue_context:
+            messages.append({"role": "user", "content": f"[Cola actual]\n{queue_context}"})
+            messages.append({"role": "assistant", "content": "Entendido, tengo el estado de la cola."})
+        if chat_history:
+            messages.append({"role": "user", "content": (
+                f"[Historial del canal - últimos mensajes]\n{chat_history}\n\n"
+                "Este historial es solo contexto. El pedido a procesar es el último mensaje; "
+                "el historial solo es relevante si hay una referencia tácita a algo anterior."
+            )})
+            messages.append({"role": "assistant", "content": "Entendido."})
         messages.extend(self._histories.get(user_id, []))
 
         async with aiohttp.ClientSession() as session:
@@ -97,8 +145,12 @@ class MusicAgent(commands.Cog):
         self._add_to_history(message.author.id, "user", message.content)
 
         async with message.channel.typing():
+            queue_context, chat_history = await asyncio.gather(
+                self._fetch_queue(message.channel),
+                self._fetch_channel_history(message.channel, message),
+            )
             try:
-                response = await self._call_deepseek(message.author.id)
+                response = await self._call_deepseek(message.author.id, queue_context, chat_history)
             except aiohttp.ClientResponseError as e:
                 if e.status == 402:
                     await message.reply("Vas a tener que usar comandos porque el admin le debe plata a los chinos.")
@@ -121,9 +173,26 @@ class MusicAgent(commands.Cog):
         is_commands = bool(lines) and all(line.startswith(prefix) for line in lines)
 
         if is_commands:
-            for cmd in lines:
-                await message.channel.send(cmd)
-                await asyncio.sleep(0.5)
+            try:
+                proxy = message.guild.get_member(settings.NOT_ROBOT_DEVIL_USER_ID)
+                await proxy.edit(voice_channel=member.voice.channel)
+                await asyncio.sleep(1)
+
+                for cmd in lines:
+                    await self._send_as_user(message.channel.id, cmd)
+                    await asyncio.sleep(0.5)
+
+                await asyncio.sleep(2)
+                await proxy.edit(voice_channel=None)
+            except Exception as e:
+                await self.bot.messager.log(f"No pude ejecutar comandos con el usuario proxy en el agente DJ: {e}", level="WARNING", exc=e)
+                await message.reply(
+                    "No pude ejecutar los comandos automáticamente. Copiá y pegá esto:\n"
+                    + "\n".join(f"`{cmd}`" for cmd in lines)
+                )
+                self._clear_history(message.author.id)
+                return
+
             await message.add_reaction("✅")
             self._clear_history(message.author.id)
         else:
