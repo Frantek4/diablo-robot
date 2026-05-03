@@ -31,6 +31,7 @@ SYSTEM_PROMPT = (
     "- Artista o género sin canción específica → 5 canciones representativas con {prefix}p, una por línea.\n"
     "- Letra de canción → usá WEBSEARCH para identificarla si no estás seguro.\n"
     "- Solo comandos, uno por línea, sin texto adicional.\n"
+    "- Cuando recibís un listado numerado de {prefix}album o {prefix}playlist, respondé únicamente con el número de la opción correcta (sin prefijo ni texto).\n"
     "- Si hay ambigüedad genuina, preguntá en castellano rioplatense con voseo. Solo en ese caso.\n"
     "- Nunca respondas con texto si podés generar comandos."
 )
@@ -44,6 +45,8 @@ INFO_COMMANDS = frozenset({
     "recently played",
     "session information",
     "session statistics",
+    "album",
+    "playlist",
 })
 
 HISTORY_TTL = 120
@@ -216,6 +219,10 @@ class MusicAgent(commands.Cog):
 
                 # ACCIÓN phase
                 return action_lines or lines, None
+
+            # Selection response: single number for album/playlist menu
+            if response.strip().isdigit():
+                return [response.strip()], None
 
             # Text response: question or IGNORAR
             if response == "IGNORAR":
