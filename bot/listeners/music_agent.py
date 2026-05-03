@@ -37,15 +37,13 @@ SYSTEM_PROMPT = (
 
 
 INFO_COMMANDS = frozenset({
-    "queue",           # también captura "queue information" vía startswith
+    "queue",
     "now playing",
     "next up",
     "upcoming",
     "recently played",
     "session information",
     "session statistics",
-    "album",           # también captura "album search" vía startswith
-    "playlist",        # también captura "playlist search" vía startswith
 })
 
 HISTORY_TTL = 120

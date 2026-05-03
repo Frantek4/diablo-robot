@@ -6,8 +6,8 @@
 - `{prefix}p <término> --insert` — insertar justo después de la canción actual
 - `{prefix}p <término> --now` — reproducir de inmediato, desplazando la cola
 - `{prefix}p <URL playlist> --shuffle` — encolar playlist mezclada
-- `{prefix}album <artista + álbum>` — buscar y encolar álbum; preferí `{prefix}p <URL Spotify>` para evitar ambigüedad
-- `{prefix}playlist <nombre>` — buscar y encolar playlist; misma recomendación
+- `{prefix}album <artista + álbum>` — buscar y encolar álbum; muestra un menú de selección que el usuario debe resolver manualmente; preferí `{prefix}p <URL Spotify>` cuando tenés la URL exacta
+- `{prefix}playlist <nombre>` — buscar y encolar playlist; mismo comportamiento que album
 - `{prefix}autoplay` — activar/desactivar autoplay al vaciarse la cola
 - `{prefix}leave` — desconectar el bot
 
