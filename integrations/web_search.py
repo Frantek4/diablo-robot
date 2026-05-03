@@ -1,11 +1,12 @@
-from ddgs import AsyncDDGS
+import asyncio
+
+from ddgs import DDGS
 
 
 async def search(query: str, max_results: int = 5) -> str:
     query = query.replace('"', '').replace("'", '')
     try:
-        async with AsyncDDGS() as ddgs:
-            results = await ddgs.atext(query, max_results=max_results)
+        results = await asyncio.to_thread(lambda: DDGS().text(query, max_results=max_results))
     except Exception:
         return "Sin resultados."
     if not results:
