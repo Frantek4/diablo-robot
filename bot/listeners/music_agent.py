@@ -77,7 +77,10 @@ class MusicAgent(commands.Cog):
         return "\n".join(f"{m.author.display_name}: {m.content}" for m in msgs)
 
     async def _fetch_queue(self, channel: discord.TextChannel) -> str | None:
-        await self._send_as_user(channel.id, f"{settings.DJ_COMMAND_PREFIX}queue")
+        try:
+            await self._send_as_user(channel.id, f"{settings.DJ_COMMAND_PREFIX}queue")
+        except Exception:
+            return None
         try:
             response = await self.bot.wait_for(
                 "message",
@@ -173,25 +176,32 @@ class MusicAgent(commands.Cog):
         is_commands = bool(lines) and all(line.startswith(prefix) for line in lines)
 
         if is_commands:
+            proxy = message.guild.get_member(settings.NOT_ROBOT_DEVIL_USER_ID)
             try:
-                proxy = message.guild.get_member(settings.NOT_ROBOT_DEVIL_USER_ID)
                 await proxy.edit(voice_channel=member.voice.channel)
                 await asyncio.sleep(1)
+            except Exception as e:
+                await self.bot.messager.log(f"No pude mover al proxy al canal de voz en el agente DJ: {e}", level="WARNING", exc=e)
 
+            try:
                 for cmd in lines:
                     await self._send_as_user(message.channel.id, cmd)
                     await asyncio.sleep(0.5)
-
-                await asyncio.sleep(2)
-                await proxy.edit(voice_channel=None)
             except Exception as e:
-                await self.bot.messager.log(f"No pude ejecutar comandos con el usuario proxy en el agente DJ: {e}", level="WARNING", exc=e)
+                await self.bot.messager.log(f"No pude enviar comandos con el usuario proxy en el agente DJ: {e}", level="WARNING", exc=e)
                 await message.reply(
                     "No pude ejecutar los comandos automáticamente. Copiá y pegá esto:\n"
                     + "\n".join(f"`{cmd}`" for cmd in lines)
                 )
                 self._clear_history(message.author.id)
                 return
+
+            try:
+                await asyncio.sleep(2)
+                idle_channel = message.guild.get_channel(settings.IDLE_VOICE_CHANNEL_ID)
+                await proxy.edit(voice_channel=idle_channel)
+            except Exception:
+                pass
 
             await message.add_reaction("✅")
             self._clear_history(message.author.id)
