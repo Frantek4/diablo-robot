@@ -1,4 +1,4 @@
-from duckduckgo_search import AsyncDDGS
+from ddgs import AsyncDDGS
 
 
 async def search(query: str, max_results: int = 5) -> str:
