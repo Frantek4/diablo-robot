@@ -89,8 +89,8 @@ class MusicAgent(commands.Cog):
         try:
             response = await self.bot.wait_for(
                 "message",
-                check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id,
-                timeout=5.0,
+                check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id and bool(m.embeds or m.content),
+                timeout=10.0,
             )
         except asyncio.TimeoutError:
             return None
@@ -204,8 +204,8 @@ class MusicAgent(commands.Cog):
                 await asyncio.sleep(2)
                 idle_channel = message.guild.get_channel(settings.IDLE_VOICE_CHANNEL_ID)
                 await proxy.edit(voice_channel=idle_channel)
-            except Exception:
-                pass
+            except Exception as e:
+                await self.bot.messager.log(f"No pude devolver al proxy a Durmiendo en el agente DJ: {e}", level="WARNING", exc=e)
 
             await message.add_reaction("✅")
             self._clear_history(message.author.id)
