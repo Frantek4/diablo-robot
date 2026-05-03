@@ -21,7 +21,8 @@ SYSTEM_PROMPT = (
     "Recibirás los resultados y podrás actuar. Preferí buscar antes de inventar o adivinar. "
     "Para identificar una canción por fragmento de letra, buscá el fragmento directamente sin añadir 'letra' como prefijo "
     "(eso buscaría la letra de una canción con ese nombre, no la canción que contiene esa frase). "
-    "Solo añadí site:open.spotify.com cuando ya sabés el nombre de la canción y necesitás la URL de Spotify.\n"
+    "Solo añadí site:open.spotify.com cuando ya sabés el nombre de la canción y necesitás la URL de Spotify. "
+    "Si no encontrás la URL de Spotify en 1 búsqueda, usá {prefix}album <artista> <álbum> directamente y no sigas buscando.\n"
     "- INFO: si el pedido requiere conocer el estado de la cola o la canción actual, respondé SOLO "
     "con los comandos de información necesarios ({prefix}queue, {prefix}now playing, etc.). Recibirás los resultados.\n"
     "- ACCIÓN: cuando tenés suficiente contexto, respondé con los comandos a ejecutar.\n"
@@ -223,7 +224,7 @@ class MusicAgent(commands.Cog):
                 return [], None
             return [], response
 
-        return ([], "") if did_work else ([], None)
+        return [], None
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
