@@ -8,7 +8,7 @@ from discord.ext import commands, tasks
 
 from config.settings import settings
 
-_REF_PATH = Path(__file__).parent.parent.parent / "config" / "jockie_commands.md"
+_REF_PATH = Path(__file__).parent.parent.parent / "config" / "docs" / "jockie_commands.md"
 _COMMANDS_REF = _REF_PATH.read_text(encoding="utf-8") if _REF_PATH.exists() else ""
 
 SYSTEM_PROMPT = (
