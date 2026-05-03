@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import discord
 from discord.ext import commands, tasks
 
 from config.settings import settings
+from integrations.web_search import search as web_search
 
 _REF_PATH = Path(__file__).parent.parent.parent / "config" / "docs" / "jockie_commands.md"
 _COMMANDS_REF = _REF_PATH.read_text(encoding="utf-8") if _REF_PATH.exists() else ""
@@ -14,32 +16,59 @@ _COMMANDS_REF = _REF_PATH.read_text(encoding="utf-8") if _REF_PATH.exists() else
 SYSTEM_PROMPT = (
     "Sos el DJ de un servidor de Discord. Traducís pedidos en lenguaje natural a comandos de Jockie Music.\n"
     "Todo mensaje en este canal es un pedido musical o de control.\n\n"
-    "Operás en dos fases:\n"
-    "- INFO: si el pedido requiere conocer el estado de la cola o la canción actual, respondé SOLO con los comandos de información necesarios. Recibirás los resultados.\n"
+    "Podés operar en tres modos dentro de una misma solicitud:\n"
+    "- BUSCAR: usá la herramienta web_search cuando necesités identificar una canción por letra, "
+    "buscar discografía reciente, o cualquier información de actualidad antes de actuar. "
+    "Preferí buscar antes de inventar o adivinar.\n"
+    "- INFO: si el pedido requiere conocer el estado de la cola o la canción actual, respondé SOLO "
+    "con los comandos de información necesarios ({prefix}queue, {prefix}now playing, etc.). Recibirás los resultados.\n"
     "- ACCIÓN: cuando tenés suficiente contexto, respondé con los comandos a ejecutar.\n"
     "Nunca mezcles INFO y ACCIÓN en la misma respuesta.\n\n"
     "Reglas no negociables:\n"
     "- Artista o género sin canción específica → 5 canciones representativas con {prefix}p, una por línea.\n"
-    "- Álbum → {prefix}album <nombre>, no canción por canción.\n"
-    "- Letra de canción → identificá la canción y generá el comando.\n"
+    "- Letra de canción → usá web_search para identificarla si no estás seguro.\n"
     "- Solo comandos, uno por línea, sin texto adicional.\n"
     "- Si hay ambigüedad genuina, preguntá en castellano rioplatense con voseo. Solo en ese caso.\n"
     "- Nunca respondas con texto si podés generar comandos."
 )
 
+WEB_SEARCH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": (
+            "Busca información en la web. Usalo para: identificar canciones por letra, "
+            "buscar el último álbum de un artista, encontrar hits recientes, o cualquier "
+            "información de actualidad necesaria para satisfacer el pedido."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "La consulta. Escribila en el idioma más apropiado (inglés para artistas internacionales).",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+}
+
 INFO_COMMANDS = frozenset({
-    "q", "queue", "queue information", "queueinfo", "queue info",
-    "np", "now", "nowplaying", "now playing",
-    "next up", "nextup", "next track", "nextsong", "nexttrack",
+    "queue",           # también captura "queue information" vía startswith
+    "now playing",
+    "next up",
     "upcoming",
-    "history", "recent", "recently played",
-    "session info", "sessioninfo", "session information",
-    "session statistics", "sessionstatistics",
+    "recently played",
+    "session information",
+    "session statistics",
+    "album",           # también captura "album search" vía startswith
+    "playlist",        # también captura "playlist search" vía startswith
 })
 
 HISTORY_TTL = 120
 MAX_HISTORY_MESSAGES = 20
-MAX_AGENT_ITERATIONS = 3
+MAX_AGENT_ITERATIONS = 5
 
 
 class MusicAgent(commands.Cog):
@@ -67,13 +96,16 @@ class MusicAgent(commands.Cog):
             self._histories.pop(uid, None)
             self._last_activity.pop(uid, None)
 
-    def _add_to_history(self, user_id: int, role: str, content: str):
+    def _push_to_history(self, user_id: int, message: dict):
         if user_id not in self._histories:
             self._histories[user_id] = []
-        self._histories[user_id].append({"role": role, "content": content})
+        self._histories[user_id].append(message)
         if len(self._histories[user_id]) > MAX_HISTORY_MESSAGES:
             self._histories[user_id] = self._histories[user_id][-MAX_HISTORY_MESSAGES:]
         self._last_activity[user_id] = time.monotonic()
+
+    def _add_to_history(self, user_id: int, role: str, content: str):
+        self._push_to_history(user_id, {"role": role, "content": content})
 
     def _clear_history(self, user_id: int):
         self._histories.pop(user_id, None)
@@ -109,7 +141,10 @@ class MusicAgent(commands.Cog):
         try:
             response = await self.bot.wait_for(
                 "message",
-                check=lambda m: m.channel.id == channel.id and m.author.bot and m.author.id != self.bot.user.id and bool(m.embeds or m.content),
+                check=lambda m: m.channel.id == channel.id
+                    and m.author.bot
+                    and m.author.id != self.bot.user.id
+                    and bool(m.embeds or m.content),
                 timeout=10.0,
             )
         except asyncio.TimeoutError:
@@ -121,7 +156,7 @@ class MusicAgent(commands.Cog):
             return "\n".join(parts) or None
         return response.content or None
 
-    async def _call_ai(self, user_id: int, chat_history: str | None) -> str:
+    async def _call_ai(self, user_id: int, chat_history: str | None) -> dict:
         messages = [{"role": "system", "content": SYSTEM_PROMPT.format(prefix=settings.DJ_COMMAND_PREFIX)}]
         if _COMMANDS_REF:
             messages.append({"role": "user", "content": f"[Referencia de comandos]\n{_COMMANDS_REF.replace('{prefix}', settings.DJ_COMMAND_PREFIX)}"})
@@ -143,13 +178,15 @@ class MusicAgent(commands.Cog):
             json={
                 "model": "deepseek-v4-flash",
                 "messages": messages,
+                "tools": [WEB_SEARCH_TOOL],
+                "tool_choice": "auto",
                 "max_tokens": 600,
                 "temperature": 0.0,
             },
         ) as resp:
             resp.raise_for_status()
             data = await resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            return data["choices"][0]["message"]
 
     async def _agent_loop(
         self,
@@ -158,22 +195,51 @@ class MusicAgent(commands.Cog):
         chat_history: str | None,
     ) -> tuple[list[str], str | None]:
         prefix = settings.DJ_COMMAND_PREFIX
+        did_work = False
 
         for i in range(MAX_AGENT_ITERATIONS):
-            response = await self._call_ai(user_id, chat_history if i == 0 else None)
+            message = await self._call_ai(user_id, chat_history if i == 0 else None)
 
+            # BUSCAR: tool call phase
+            if message.get("tool_calls"):
+                did_work = True
+                self._push_to_history(user_id, {
+                    "role": "assistant",
+                    "content": message.get("content"),
+                    "tool_calls": message["tool_calls"],
+                })
+                for tool_call in message["tool_calls"]:
+                    if tool_call["function"]["name"] != "web_search":
+                        continue
+                    try:
+                        query = json.loads(tool_call["function"]["arguments"])["query"]
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+                    result = await web_search(query)
+                    self._push_to_history(user_id, {
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": result,
+                    })
+                continue
+
+            response = (message.get("content") or "").strip()
+
+            # Empty after tool use or INFO phase = implicit success (album queued, etc.)
             if not response:
-                return [], None
+                return ([], "") if did_work else ([], None)
 
             lines = [line.strip() for line in response.splitlines() if line.strip()]
             if not lines:
-                return [], None
+                return ([], "") if did_work else ([], None)
 
             if all(line.startswith(prefix) for line in lines):
                 info_lines = [l for l in lines if self._is_info_command(l)]
                 action_lines = [l for l in lines if not self._is_info_command(l)]
 
+                # INFO phase
                 if info_lines and not action_lines:
+                    did_work = True
                     results = []
                     for cmd in info_lines:
                         result = await self._execute_info_command(channel, cmd)
@@ -182,17 +248,19 @@ class MusicAgent(commands.Cog):
                     self._add_to_history(user_id, "assistant", "\n".join(info_lines))
                     self._add_to_history(
                         user_id, "user",
-                        "\n\n".join(results) if results else "Sin respuesta de Jockie."
+                        "\n\n".join(results) if results else "Sin respuesta de Jockie.",
                     )
                     continue
 
+                # ACCIÓN phase
                 return action_lines or lines, None
 
+            # Text response: question or IGNORAR
             if response == "IGNORAR":
                 return [], None
             return [], response
 
-        return [], None
+        return ([], "") if did_work else ([], None)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -267,6 +335,10 @@ class MusicAgent(commands.Cog):
                 await return_to_idle()
                 return
 
+            await message.add_reaction("✅")
+            self._clear_history(message.author.id)
+        elif reply == "":
+            # Implicit success: album/playlist queued or tool used with no further commands needed
             await message.add_reaction("✅")
             self._clear_history(message.author.id)
         else:
