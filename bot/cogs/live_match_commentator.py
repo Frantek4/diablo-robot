@@ -43,6 +43,7 @@ class LiveMatchCommentator(commands.Cog):
             "seen_events": set(),
             "lineups_sent": False,
             "low_coverage_warned": False,
+            "empty_responses": 0,
         }
         if self.bot.messager:
             await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
@@ -53,9 +54,22 @@ class LiveMatchCommentator(commands.Cog):
                     try:
                         game = await self._fetch_game(session, match_id)
                         if game is None:
-                            logger.warning(f"_track_match: _fetch_game devolvió None para {match_id}, reintentando en 30s")
+                            self.active_trackers[match_id]["empty_responses"] += 1
+                            count = self.active_trackers[match_id]["empty_responses"]
+                            logger.warning(f"_track_match: _fetch_game devolvió None para {match_id} ({count}/5)")
+                            if count >= 5:
+                                logger.error(f"_track_match: 5 respuestas vacías consecutivas para {match_id}, abandonando tracking")
+                                if self.bot.messager:
+                                    await self.bot.messager.log(
+                                        f"Abandoné el tracking de {match_id} tras 5 respuestas vacías de la API. "
+                                        f"El partido puede haber terminado sin que lo detectara.", level="WARNING"
+                                    )
+                                self.bot.fixture_dao.update_status(fixture_id, FixtureStatus.FINISHED)
+                                break
                             await asyncio.sleep(30)
                             continue
+
+                        self.active_trackers[match_id]["empty_responses"] = 0
 
                         status_enum = game.get("status", {}).get("enum", 0)
                         status_name = game.get("status", {}).get("name", "")
