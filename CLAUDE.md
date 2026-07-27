@@ -19,34 +19,38 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 
 ## Architecture
 
-**Diablo Robot** is an async Discord bot (`discord.py`) for Club Atlético Independiente's server. It tracks football fixtures, posts live match commentary, and aggregates news/social media.
+**Diablo Robot** is an async Discord bot (`discord.py`) for Club Atlético Independiente's server. It tracks football fixtures, posts live match commentary, aggregates news/social media, and includes an AI-powered music agent.
 
 ### Layer Structure
 
 - **`main.py`** — Entry point: validates env vars, creates bot, starts run loop
 - **`config/settings.py`** — Pydantic BaseSettings loading all env vars; `config/database.py` — MongoDB singleton
-- **`bot/client.py`** — `DiabloRobot` class; `setup_hook()` loads all cogs/commands/listeners/schedulers; `on_ready()` starts scheduled tasks
+- **`bot/client.py`** — `DiabloRobot` class; `setup_hook()` loads all cogs/commands/listeners/schedulers; `on_ready()` starts scheduled tasks. **Commands are only processed from `ROBOT_DEVIL_TEXT_CHANNEL_ID`** (enforced in `on_message`).
 - **`bot/commands/`** — Prefix commands (`!cmd`); admin-only ones check guild permissions
-- **`bot/scheduled/`** — Background `tasks.loop` coroutines started in `on_ready()`; each runs independently
-- **`bot/cogs/`** — Stateful Discord cogs (fixture event creation, event lifecycle)
-- **`bot/listeners/`** — Event handler cogs (reactions, event announcements)
-- **`bot/config/messager.py`** — Centralized message dispatcher; holds references to all channel objects
+- **`bot/scheduled/`** — Scheduler cogs with a `tasks.loop` started via `start_scheduled_job()` in `on_ready()`
+- **`bot/cogs/`** — Stateful Discord cogs (fixture event creation, event lifecycle, live match commentator)
+- **`bot/listeners/`** — Event handler cogs (reactions, event announcements, music agent)
+- **`bot/ui/`** — Discord UI components (buttons, views) used by cogs and listeners
+- **`bot/config/messager.py`** — Centralized message dispatcher; holds typed references to all channel objects; initialized in `on_ready()` via `init_messager(bot)`
 - **`data_access/`** — DAO classes wrapping raw PyMongo queries; one DAO per MongoDB collection
-- **`models/`** — Pydantic-style dataclasses; `fixture.py` handles emoji formatting and change detection
-- **`integrations/`** — Web scrapers (BeautifulSoup + aiohttp) for Promiedos, Olé, TycSports, DobleAmarilla, Twitter (via Nitter RSS), YouTube RSS
+- **`models/`** — Plain dataclasses; `fixture.py` handles emoji formatting and change detection
+- **`integrations/`** — Web scrapers (BeautifulSoup + aiohttp) for Promiedos, Olé, TycSports, DobleAmarilla, Twitter (via Nitter RSS), YouTube RSS, Instagram
 
 ### Data Flow
 
-1. **Fixture check** (`bot/scheduled/fixture_check.py`, 1h loop): scrapes Promiedos → upserts into `fixtures` collection → `FixtureEventCreator` cog creates/updates Discord scheduled events
-2. **Live match** (`bot/scheduled/live_match_scheduler.py`, 1min loop): polls Promiedos for live scores/events → posts to `#comentador` channel via messager
-3. **News** (`bot/scheduled/news_check.py`, 1h loop): scrapes Olé/TycSports/DobleAmarilla → deduplicates via `news` collection → posts to `#prensa` or `#club` channel
-4. **Social media** (`twitter_check.py`, `youtube_check.py`): fetches RSS → posts new entries to configured channels
+1. **Fixture check** (`bot/scheduled/fixture_check.py`, 1h loop): scrapes Promiedos → upserts into `fixtures` collection → `FixtureEventCreator` cog creates/updates Discord scheduled events and announces changes to `#announcements`
+2. **Live match**: `CommentatorScheduler` (`bot/scheduled/commentator_scheduler.py`, 1min loop) queries DB for the next match; when ≤30 min away, delegates to `LiveMatchCommentator` cog (`bot/cogs/live_match_commentator.py`), which spawns an `asyncio.Task` that polls the Promiedos game-center API every 30s and posts events to `#comentador`
+3. **Event lifecycle**: `EventLifecycleManager` cog (`bot/cogs/event_lifecycle_manager.py`, 5min loop) announces Discord scheduled event starts (with voice invite) and force-ends overdue active events
+4. **Post-match discussion**: `EventEndForumPoster` listener (`bot/listeners/post_match_discussion.py`) opens a forum thread in `FOOTBALL_FORUM_ID` when a Discord scheduled event ends
+5. **News** (`bot/scheduled/news_check.py`, 1h loop): scrapes Olé/TycSports/DobleAmarilla → deduplicates via `news` collection → posts to `#prensa` or `#club` channel
+6. **Social media** (`twitter_check.py`, `youtube_check.py`, `instagram_check.py`): fetches RSS/scrapes → posts new entries to configured channels
+7. **Music agent** (`bot/listeners/music_agent.py`): listens on `MUSIC_TEXT_CHANNEL_ID`; translates natural-language requests into Jockie Music commands via DeepSeek API; executes them by sending messages as a proxy user account (`NOT_ROBOT_DEVIL_USER_TOKEN`); moves the proxy user to/from the requester's voice channel to make Jockie follow along
 
 ### Key Patterns
 
 - All DAOs follow: `insert()`, `get_*()`, `exists()`, `upsert()`, `update_*()` — raw PyMongo, no ORM
 - Adding a new command: create file in `bot/commands/`, add `await bot.load_extension('bot.commands.filename')` in `bot/client.py`
-- Adding a new scheduled task: create file in `bot/scheduled/` with a `setup(bot)` function; load it in `client.py`
+- Adding a new scheduled task: create file in `bot/scheduled/` with a `setup(bot)` function that adds a cog with `start_scheduled_job()`; load it in `client.py` and call `start_scheduled_job()` in `on_ready()`
 - Discord channel IDs are env vars loaded via settings object on `config/settings.py` and accessed through the messager
 - **Logging**: all errors and warnings in async code must use `await messager.log(msg, level="ERROR"|"WARNING", exc=e)` — it posts to `ROBOT_DEVIL_TEXT_CHANNEL` and also calls the standard Python logger (visible via `journalctl`). Only use `logger.*` directly in sync helper methods where `await` is not possible. Messages should be written in first person, informally but informatively — e.g. `"No pude scrapear Olé"`, `"Le di el rol X a Y"`, `"No tengo permisos para..."` — not bureaucratic passive constructions.
 
@@ -69,8 +73,13 @@ All defined in `config/settings.py`. Required vars are also validated at startup
 
 - `DISCORD_TOKEN`, `GUILD_ID` — Discord auth
 - `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` — MongoDB
+- `USER_AGENT` — HTTP user-agent string for scrapers
 - `TWITTER_RSS_BRIDGE_URL` — Nitter instance for Twitter RSS (default: `http://nitter.net`)
-- Channel IDs: `GENERAL_TEXT_CHANNEL_ID`, `ANNOUNCEMENTS_TEXT_CHANNEL_ID`, `CLUB_TEXT_CHANNEL_ID`, `PRESS_TEXT_CHANNEL_ID`, `COMMENTATOR_TEXT_CHANNEL_ID`, `GAMES_TEXT_CHANNEL_ID`, `ROBOT_DEVIL_TEXT_CHANNEL_ID`
-- `GENERAL_VOICE_CHANNEL_ID`, `TERMOS_VOICE_CHANNEL_ID` — Text and voice channels with automatization processes
-- `GAMES_CATEGORY_ID`, `GENERAL_CATEGORY_ID` — Category IDs for channel organization
+- `IG_USERNAME`, `IG_PASSWORD` — Instagram credentials for instaloader (optional)
+- `DEEPSEEK_API_KEY` — DeepSeek API key for the music agent (optional)
+- `NOT_ROBOT_DEVIL_USER_TOKEN`, `NOT_ROBOT_DEVIL_USER_ID` — Proxy user account used by the music agent to send Jockie commands as a real user
+- `DJ_COMMAND_PREFIX` — Jockie Music command prefix (default: `m!`)
+- Channel IDs: `GENERAL_TEXT_CHANNEL_ID`, `ANNOUNCEMENTS_TEXT_CHANNEL_ID`, `CLUB_TEXT_CHANNEL_ID`, `PRESS_TEXT_CHANNEL_ID`, `COMMENTATOR_TEXT_CHANNEL_ID`, `GAMES_TEXT_CHANNEL_ID`, `ROBOT_DEVIL_TEXT_CHANNEL_ID`, `MUSIC_TEXT_CHANNEL_ID`
+- `GENERAL_VOICE_CHANNEL_ID`, `TERMOS_VOICE_CHANNEL_ID`, `IDLE_VOICE_CHANNEL_ID` — Voice channels used for events and proxy user idle state
+- `GAMES_CATEGORY_ID` — Category ID for game channels
 - `FOOTBALL_FORUM_ID` — Forum channel for match discussion

@@ -41,6 +41,8 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
+        await self.load_extension('bot.commands.transmitir')
+        await self.load_extension('bot.commands.limpiar')
         await self.load_extension('bot.scheduled.fixture_check')
         await self.load_extension('bot.cogs.live_match_commentator')
         await self.load_extension('bot.scheduled.commentator_scheduler')
