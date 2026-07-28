@@ -2,6 +2,8 @@ from zoneinfo import ZoneInfo
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 
+from utils.duration_format import parse_duration
+
 
 class Settings(BaseSettings):
     TIMEZONE: ZoneInfo = ZoneInfo("America/Argentina/Buenos_Aires")
@@ -32,6 +34,13 @@ class Settings(BaseSettings):
     NOT_ROBOT_DEVIL_USER_ID: int
     IDLE_VOICE_CHANNEL_ID: int
     DEEPSEEK_API_KEY: str = ""
+    TPLINK_ROUTER_HOST: str = "http://192.168.0.1"
+    TPLINK_ROUTER_PASSWORD: str = ""
+    WIREGUARD_ENDPOINT_HOST: str = ""
+    WIREGUARD_ALLOWED_IPS: str = "192.168.0.0/24, 10.5.5.0/24"
+    WIREGUARD_MTU: int = 1420
+    WIREGUARD_DNS: str = ""
+    SECRET_MESSAGE_TTL: str = "1h"
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod
@@ -41,6 +50,12 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return ZoneInfo(v)
         raise ValueError(f"TIMEZONE inválido: {v}")
+
+    @field_validator("SECRET_MESSAGE_TTL")
+    @classmethod
+    def validate_secret_message_ttl(cls, v):
+        parse_duration(v)
+        return v
 
     class Config:
         env_file = ".env"
