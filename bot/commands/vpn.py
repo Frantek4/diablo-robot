@@ -18,7 +18,7 @@ class VpnCommand(commands.Cog):
         username = ctx.author.name
         loop = asyncio.get_running_loop()
 
-        await ctx.send(f"Dale {ctx.author.mention}, dame un segundo que te armo la config de WireGuard.")
+        await ctx.send(f"Dale, dame un segundo que te armo la config de WireGuard.")
 
         try:
             accounts = await loop.run_in_executor(None, wireguard.list_accounts)
