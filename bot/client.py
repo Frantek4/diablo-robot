@@ -44,6 +44,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.transmitir')
         await self.load_extension('bot.commands.limpiar')
         await self.load_extension('bot.commands.reiniciar')
+        await self.load_extension('bot.commands.vpn')
         await self.load_extension('bot.scheduled.fixture_check')
         await self.load_extension('bot.cogs.live_match_commentator')
         await self.load_extension('bot.scheduled.commentator_scheduler')
@@ -71,9 +72,11 @@ class DiabloRobot(commands.Bot):
     async def on_message(self, message):
         if message.author == self.user:
             return
-        if message.channel.id != settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
+        if message.channel.id == settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
+            await self.process_commands(message)
             return
-        await self.process_commands(message)
+        if message.channel.id == settings.GENERAL_TEXT_CHANNEL_ID and message.content.startswith(f"{settings.PREFIX}vpn"):
+            await self.process_commands(message)
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
