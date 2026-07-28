@@ -1,5 +1,6 @@
 import ipaddress
 import json
+import uuid
 from urllib.parse import urlencode
 
 from tplinkrouterc6u import TplinkRouterProvider
@@ -9,7 +10,7 @@ from config.settings import settings
 ACCOUNT_PATH = "admin/wireguard?form=account"
 CONFIG_PATH = "admin/wireguard?form=config"
 CREATE_OPERATION = "insert"
-DELETE_OPERATION_CANDIDATES = ("delete", "del", "remove", "drop")
+DELETE_OPERATION = "remove"
 
 
 def _get_router():
@@ -19,6 +20,8 @@ def _get_router():
 
 
 def _is_error(result) -> bool:
+    if isinstance(result, list):
+        result = result[0] if result else {}
     return isinstance(result, dict) and result.get("success") is False
 
 
@@ -53,6 +56,7 @@ def create_account(username: str, client_ip: str) -> dict:
             "allowed_server": f"{client_ip}/32",
             "allowed_client": "10.5.5.0/24",
             "psk_enabled": True,
+            "key": f"key-{uuid.uuid4()}",
         }
         payload = urlencode({"operation": CREATE_OPERATION, "new": json.dumps(new_account)})
         result = router.request(ACCOUNT_PATH, payload)
@@ -63,15 +67,13 @@ def create_account(username: str, client_ip: str) -> dict:
         router.logout()
 
 
-def delete_account(key: str) -> None:
+def delete_account(key: str, index: int) -> None:
     router = _get_router()
     try:
-        for op in DELETE_OPERATION_CANDIDATES:
-            payload = urlencode({"operation": op, "key": key})
-            result = router.request(ACCOUNT_PATH, payload, ignore_errors=True)
-            if not _is_error(result):
-                return
-        raise RuntimeError(f"Ninguna operación de borrado conocida funcionó para key={key}")
+        payload = urlencode({"operation": DELETE_OPERATION, "key": key, "index": index})
+        result = router.request(ACCOUNT_PATH, payload, ignore_errors=True)
+        if _is_error(result):
+            raise RuntimeError(f"El router no pudo borrar la cuenta key={key} index={index}: {result}")
     finally:
         router.logout()
 

@@ -28,10 +28,11 @@ class VpnCommand(commands.Cog):
             await self.bot.messager.log(f"No pude conectarme al router para armar la VPN de {username}: {e}", level="ERROR", exc=e)
             return
 
-        existing = next((a for a in accounts if a.get("username") == username), None)
-        if existing:
+        existing_index = next((i for i, a in enumerate(accounts) if a.get("username") == username), None)
+        if existing_index is not None:
+            existing = accounts[existing_index]
             try:
-                await loop.run_in_executor(None, wireguard.delete_account, existing["key"])
+                await loop.run_in_executor(None, wireguard.delete_account, existing.get("key", ""), existing_index)
             except Exception as e:
                 await ctx.send(f"{ctx.author.mention} no pude renovar tu config, avisale a un admin.")
                 await self.bot.messager.log(f"No pude borrar la config vieja de WireGuard de {username}: {e}", level="ERROR", exc=e)
