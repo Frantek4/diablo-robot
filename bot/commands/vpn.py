@@ -18,6 +18,8 @@ class VpnCommand(commands.Cog):
         username = ctx.author.name
         loop = asyncio.get_running_loop()
 
+        await ctx.send(f"Dale {ctx.author.mention}, dame un segundo que te armo la config de WireGuard.")
+
         try:
             accounts = await loop.run_in_executor(None, wireguard.list_accounts)
             server_config = await loop.run_in_executor(None, wireguard.get_server_config)
@@ -45,7 +47,7 @@ class VpnCommand(commands.Cog):
             return
 
         config_text = wireguard.build_client_config(credentials, server_config)
-        config_file = discord.File(io.BytesIO(config_text.encode()), filename="wg-diablo.conf")
+        config_file = discord.File(io.BytesIO(config_text.encode()), filename="wg-ecai.conf")
 
         ttl_seconds = parse_duration(settings.SECRET_MESSAGE_TTL)
         ttl_human = humanize_duration(settings.SECRET_MESSAGE_TTL)
