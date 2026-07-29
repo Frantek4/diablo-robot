@@ -7,6 +7,7 @@ from data_access.fixture_dao import FixtureDAO
 from data_access.game_dao import GameDAO
 from data_access.influencer_dao import InfluencerDAO
 from data_access.news_dao import NewsDAO
+from data_access.self_destruct_message_dao import SelfDestructMessageDAO
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class DiabloRobot(commands.Bot):
         self.games_dao = GameDAO()
         self.influencer_dao = InfluencerDAO()
         self.fixture_dao = FixtureDAO()
+        self.self_destruct_message_dao = SelfDestructMessageDAO()
 
     async def setup_hook(self):
         await self.load_extension('bot.cogs.fixture_event_creator')
@@ -52,6 +54,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.twitter_check')
         await self.load_extension('bot.scheduled.youtube_check')
         await self.load_extension('bot.scheduled.instagram_check')
+        await self.load_extension('bot.scheduled.self_destruct_message_cleanup')
         await self.load_extension('bot.listeners.game_role')
         await self.load_extension('bot.listeners.post_match_discussion')
         await self.load_extension('bot.listeners.music_agent')
@@ -64,6 +67,7 @@ class DiabloRobot(commands.Bot):
         self.get_cog('TwitterCheckScheduler').start_scheduled_job()
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         self.get_cog('InstagramCheckScheduler').start_scheduled_job()
+        self.get_cog('SelfDestructMessageCleanupScheduler').start_scheduled_job()
         init_messager(self)
         await self.get_cog('EventLifecycleManager').start()
         logger.info(f'{self.user} conectado a {self.guilds[0].name}')

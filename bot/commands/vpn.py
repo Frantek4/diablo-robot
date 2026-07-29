@@ -1,11 +1,13 @@
 import asyncio
 import io
+from datetime import datetime, timedelta
 
 import discord
 from discord.ext import commands
 
 from config.settings import settings
 from integrations import wireguard
+from models.self_destruct_message import SelfDestructMessage
 from utils.duration_format import humanize_duration, parse_duration
 
 
@@ -67,14 +69,12 @@ class VpnCommand(commands.Cog):
         await ctx.send(f"Listo {ctx.author.mention}, te mandé tu config de WireGuard por privado.")
         await self.bot.messager.log(f"Generé una config de WireGuard para {username} ({client_ip}).")
 
-        asyncio.create_task(self._delete_after_delay(dm_message, ttl_seconds))
-
-    async def _delete_after_delay(self, message: discord.Message, delay: float):
-        await asyncio.sleep(delay)
-        try:
-            await message.delete()
-        except discord.HTTPException:
-            pass
+        delete_at = datetime.now(settings.TIMEZONE) + timedelta(seconds=ttl_seconds)
+        self.bot.self_destruct_message_dao.insert(SelfDestructMessage(
+            user_id=ctx.author.id,
+            message_id=dm_message.id,
+            delete_at=delete_at,
+        ))
 
 
 async def setup(bot):
