@@ -48,7 +48,7 @@ class VpnCommand(commands.Cog):
             return
 
         config_text = wireguard.build_client_config(credentials, server_config)
-        config_file = discord.File(io.BytesIO(config_text.encode()), filename="wg-ecai.conf")
+        config_file = discord.File(io.BytesIO(config_text.encode()), filename="wg-e-cai.conf")
 
         ttl_seconds = parse_duration(settings.SECRET_MESSAGE_TTL)
         ttl_human = humanize_duration(settings.SECRET_MESSAGE_TTL)
