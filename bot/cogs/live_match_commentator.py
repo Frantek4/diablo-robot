@@ -20,7 +20,11 @@ class LiveMatchCommentator(commands.Cog):
         self.active_trackers: dict = {}
         self._tracking_tasks: set = set()
         self.api_url = "https://api.promiedos.com.ar/gamecenter/"
-        self.headers = {'User-Agent': settings.USER_AGENT}
+        self.headers = {
+            'User-Agent': settings.USER_AGENT,
+            'Referer': 'https://www.promiedos.com.ar/',
+            'X-VER': '1.11.7.5',
+        }
 
     def cog_unload(self):
         for task in list(self._tracking_tasks):
