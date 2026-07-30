@@ -31,6 +31,10 @@ class GameRoleHandler(commands.Cog):
                 return
 
             game = self.bot.games_dao.get_game_by_message_id(payload.message_id)
+            if not game:
+                await self.bot.messager.log(f"No encontré ningún juego para el mensaje {payload.message_id}.", level="WARNING")
+                return
+
             role = discord.utils.get(guild.roles, name=game.name)
             if not role:
                 await self.bot.messager.log(f"No encontré el rol '{game.name}' para asignarlo.", level="WARNING")
@@ -56,6 +60,7 @@ class GameRoleHandler(commands.Cog):
         try:
             game = self.bot.games_dao.get_game_by_message_id(payload.message_id)
             if not game:
+                await self.bot.messager.log(f"No encontré ningún juego para el mensaje {payload.message_id}.", level="WARNING")
                 return
 
             role = discord.utils.get(guild.roles, name=game.name)
