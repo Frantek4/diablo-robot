@@ -58,8 +58,16 @@ class VpnCommand(commands.Cog):
         try:
             dm_message = await ctx.author.send(
                 "Acá está tu configuración de WireGuard. Importala en la app oficial de WireGuard "
-                "(botón '+' → 'Import from file or archive'). "
-                f"No kuelgues que en {ttl_human} borro el mensaje.",
+                "(botón '+' → 'Import from file or archive').\n"
+                f"No kuelgues que en {ttl_human} borro el mensaje.\n\n"
+                "Si estás en Windows y querés ver también los recursos de la LAN (archivos compartidos, "
+                "impresoras, etc.), Windows arranca la interfaz de WireGuard como red 'Pública' y bloquea "
+                "eso. Una vez conectado, corré esto en PowerShell **como Administrador** (una sola vez):\n"
+                "```powershell\n"
+                'Set-NetConnectionProfile -InterfaceAlias "wg-e-cai" -NetworkCategory Private; '
+                'New-NetFirewallRule -DisplayName "Allow Inbound - WireGuard VPN" -Direction Inbound '
+                '-InterfaceAlias "wg-e-cai" -Action Allow\n'
+                "```",
                 file=config_file,
             )
         except discord.Forbidden:
