@@ -14,6 +14,22 @@ _APAGAR = "APAGAR"
 _CDP_PORT = 9222
 _CHROMIUM = shutil.which("chromium") or shutil.which("chromium-browser") or "chromium-browser"
 
+_FIREFOX_APP_ID = "firefox"  # ventana donde corre Discord web logueado como not_robot_devil
+
+# El Pi corre labwc (Wayland), sin sesión gráfica propia para el proceso del bot
+# (systemd lo corre como servicio de sistema), así que hay que pasarle estas dos
+# variables a mano a wlrctl/ydotool para que encuentren el compositor y el socket.
+_WAYLAND_ENV_DEFAULTS = {"XDG_RUNTIME_DIR": "/run/user/1000", "WAYLAND_DISPLAY": "wayland-0"}
+
+# Coordenadas absolutas de pantalla (Firefox corre siempre maximizado a 1920x1080).
+# Calibradas a mano con `slurp` en el Pi real. Si cambia la resolución, el layout
+# de Discord, o se resuelve a Firefox en otra ventana, hay que recalibrar
+# (ver "Calibración de coordenadas" en docs/TRANSMITIR-SCREENSHARE.md).
+_GO_LIVE_BUTTON_POS = (145, 987)
+_FIREFOX_SHARE_DIALOG_CONFIRM_POS = (750, 296)
+_SCREEN_PICKER_CONFIRM_POS = (960, 540)  # click "en cualquier lado" con el cursor en crosshair
+_STOP_STREAMING_BUTTON_POS = (338, 886)
+
 # Espera hasta 20s a que aparezca un <video> en la página
 _WAIT_VIDEO_JS = """
 new Promise(resolve => {
@@ -45,6 +61,7 @@ class TransmitirCommand(commands.Cog):
         self._proc = None
 
     async def _stop(self):
+        await self._stop_screenshare()
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
             try:
@@ -52,6 +69,38 @@ class TransmitirCommand(commands.Cog):
             except asyncio.TimeoutError:
                 self._proc.kill()
         self._proc = None
+
+    async def _run_wl_cmd(self, *args: str) -> str:
+        env = {**os.environ}
+        for key, value in _WAYLAND_ENV_DEFAULTS.items():
+            env.setdefault(key, value)
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await proc.communicate()
+        return stdout.decode().strip()
+
+    async def _focus_discord_window(self):
+        await self._run_wl_cmd("wlrctl", "toplevel", "focus", f"app_id:{_FIREFOX_APP_ID}")
+
+    async def _click_absolute(self, x: int, y: int):
+        await self._run_wl_cmd("ydotool", "mousemove", "-a", "-x", str(x), "-y", str(y))
+        await self._run_wl_cmd("ydotool", "click", "0xC0")
+
+    async def _start_screenshare(self):
+        await self._focus_discord_window()
+        await self._click_absolute(*_GO_LIVE_BUTTON_POS)
+        await asyncio.sleep(1.0)  # esperar el diálogo de permiso de Firefox ("Use system handler")
+        await self._click_absolute(*_FIREFOX_SHARE_DIALOG_CONFIRM_POS)
+        await asyncio.sleep(1.0)  # esperar a que el cursor pase a modo crosshair (selección de salida del portal)
+        await self._click_absolute(*_SCREEN_PICKER_CONFIRM_POS)
+
+    async def _stop_screenshare(self):
+        await self._focus_discord_window()
+        await self._click_absolute(*_STOP_STREAMING_BUTTON_POS)
 
     async def _cdp_msg(self, ws, method: str, params: dict, msg_id: int, timeout: float = 5.0) -> dict:
         await ws.send_str(json.dumps({"id": msg_id, "method": method, "params": params}))
@@ -136,10 +185,11 @@ class TransmitirCommand(commands.Cog):
 
             if not ws_url:
                 logger.warning("No pude conectarme al CDP; el browser está abierto pero sin fullscreen del player.")
-                return
+            else:
+                async with session.ws_connect(ws_url) as ws:
+                    await self._fullscreen_player(ws)
 
-            async with session.ws_connect(ws_url) as ws:
-                await self._fullscreen_player(ws)
+        await self._start_screenshare()
 
     @commands.command(name="transmitir", extras={"admin": True})
     @commands.has_permissions(manage_roles=True)

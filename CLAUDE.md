@@ -44,7 +44,8 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 4. **Post-match discussion**: `EventEndForumPoster` listener (`bot/listeners/post_match_discussion.py`) opens a forum thread in `FOOTBALL_FORUM_ID` when a Discord scheduled event ends
 5. **News** (`bot/scheduled/news_check.py`, 1h loop): scrapes Olé/TycSports/DobleAmarilla → deduplicates via `news` collection → posts to `#prensa` or `#club` channel
 6. **Social media** (`twitter_check.py`, `youtube_check.py`, `instagram_check.py`): fetches RSS/scrapes → posts new entries to configured channels
-7. **Music agent** (`bot/listeners/music_agent.py`): listens on `MUSIC_TEXT_CHANNEL_ID`; translates natural-language requests into Jockie Music commands via DeepSeek API; executes them by sending messages as a proxy user account (`NOT_ROBOT_DEVIL_USER_TOKEN`); moves the proxy user to/from the requester's voice channel to make Jockie follow along
+7. **Minecraft status** (`bot/scheduled/minecraft_check.py`, 1min loop): consulta el server de Minecraft por Server List Ping (`integrations/minecraft.py`, vía `mcstatus`) a través de la VPN de WireGuard y mantiene un único mensaje "banner" editado en `#minecraft` con si está prendido y quién está jugando. El ID de ese mensaje vive en `MINECRAFT_STATUS_MESSAGE_ID` (no en Mongo); si no está seteado, el bot crea uno nuevo y loguea el ID para que se persista a mano en el `.env`
+8. **Music agent** (`bot/listeners/music_agent.py`): listens on `MUSIC_TEXT_CHANNEL_ID`; translates natural-language requests into Jockie Music commands via DeepSeek API; executes them by sending messages as a proxy user account (`NOT_ROBOT_DEVIL_USER_TOKEN`); moves the proxy user to/from the requester's voice channel to make Jockie follow along
 
 ### Key Patterns
 
@@ -79,7 +80,8 @@ All defined in `config/settings.py`. Required vars are also validated at startup
 - `DEEPSEEK_API_KEY` — DeepSeek API key for the music agent (optional)
 - `NOT_ROBOT_DEVIL_USER_TOKEN`, `NOT_ROBOT_DEVIL_USER_ID` — Proxy user account used by the music agent to send Jockie commands as a real user
 - `DJ_COMMAND_PREFIX` — Jockie Music command prefix (default: `m!`)
-- Channel IDs: `GENERAL_TEXT_CHANNEL_ID`, `ANNOUNCEMENTS_TEXT_CHANNEL_ID`, `CLUB_TEXT_CHANNEL_ID`, `PRESS_TEXT_CHANNEL_ID`, `COMMENTATOR_TEXT_CHANNEL_ID`, `GAMES_TEXT_CHANNEL_ID`, `ROBOT_DEVIL_TEXT_CHANNEL_ID`, `MUSIC_TEXT_CHANNEL_ID`
+- Channel IDs: `GENERAL_TEXT_CHANNEL_ID`, `ANNOUNCEMENTS_TEXT_CHANNEL_ID`, `CLUB_TEXT_CHANNEL_ID`, `PRESS_TEXT_CHANNEL_ID`, `COMMENTATOR_TEXT_CHANNEL_ID`, `GAMES_TEXT_CHANNEL_ID`, `ROBOT_DEVIL_TEXT_CHANNEL_ID`, `MUSIC_TEXT_CHANNEL_ID`, `MINECRAFT_TEXT_CHANNEL_ID`
+- `MINECRAFT_SERVER_HOST`, `MINECRAFT_SERVER_PORT` — cómo alcanzar el server de Minecraft dentro de la VPN de WireGuard (default `e-cai.mc:25565`); `MINECRAFT_STATUS_MESSAGE_ID` — ID del mensaje-banner en `#minecraft` que el scheduler edita en vez de recrear (opcional; si falta, el bot crea uno y loguea el ID a mano)
 - `GENERAL_VOICE_CHANNEL_ID`, `TERMOS_VOICE_CHANNEL_ID`, `IDLE_VOICE_CHANNEL_ID` — Voice channels used for events and proxy user idle state
 - `GAMES_CATEGORY_ID` — Category ID for game channels
 - `FOOTBALL_FORUM_ID` — Forum channel for match discussion

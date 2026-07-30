@@ -11,3 +11,4 @@ pymongo>=4.17.0
 instaloader>=4.15.2
 ddgs
 tplinkrouterc6u
+mcstatus>=11.0.0,<12.0

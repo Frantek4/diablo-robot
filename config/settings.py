@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     PRESS_TEXT_CHANNEL_ID: int
     GAMES_TEXT_CHANNEL_ID: int
     ROBOT_DEVIL_TEXT_CHANNEL_ID: int
+    MINECRAFT_TEXT_CHANNEL_ID: int
     FOOTBALL_FORUM_ID: int
     GAMES_CATEGORY_ID: int
     USER_AGENT: str
@@ -41,6 +42,9 @@ class Settings(BaseSettings):
     WIREGUARD_MTU: int = 1420
     WIREGUARD_DNS: str = ""
     SECRET_MESSAGE_TTL: str = "1h"
+    MINECRAFT_SERVER_HOST: str = "e-cai.mc"
+    MINECRAFT_SERVER_PORT: int = 25565
+    MINECRAFT_STATUS_MESSAGE_ID: int | None = None
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod

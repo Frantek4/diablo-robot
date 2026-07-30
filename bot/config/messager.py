@@ -21,6 +21,7 @@ class Messager:
         self.games_channel = discord.utils.get(self.guild.text_channels, id=settings.GAMES_TEXT_CHANNEL_ID)
         self.devil_robot_channel = discord.utils.get(self.guild.text_channels, id=settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
         self.commentator_channel = discord.utils.get(self.guild.text_channels, id=settings.COMMENTATOR_TEXT_CHANNEL_ID)
+        self.minecraft_channel = discord.utils.get(self.guild.text_channels, id=settings.MINECRAFT_TEXT_CHANNEL_ID)
         self.football_forum = discord.utils.get(self.guild.channels, id=settings.FOOTBALL_FORUM_ID, type=discord.ChannelType.forum)
 
         missing_channels = []
@@ -34,6 +35,8 @@ class Messager:
             missing_channels.append(settings.GAMES_TEXT_CHANNEL_ID)
         if not self.devil_robot_channel:
             missing_channels.append(settings.ROBOT_DEVIL_TEXT_CHANNEL_ID)
+        if not self.minecraft_channel:
+            missing_channels.append(settings.MINECRAFT_TEXT_CHANNEL_ID)
         if not self.football_forum:
             missing_channels.append(settings.FOOTBALL_FORUM_ID)
 
@@ -78,6 +81,17 @@ class Messager:
         
         except Exception as e:
             await self.log(f"Error al enviar noticia {url} a canal {type}: {e}", level="ERROR", exc=e)
+
+    async def minecraft_status(self, embed: discord.Embed, message_id: int = None) -> discord.Message:
+        """Edita el banner de estado del server si existe, o crea uno nuevo."""
+        if message_id:
+            try:
+                message = await self.minecraft_channel.fetch_message(message_id)
+                await message.edit(embed=embed)
+                return message
+            except discord.NotFound:
+                pass
+        return await self.minecraft_channel.send(embed=embed)
 
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)
