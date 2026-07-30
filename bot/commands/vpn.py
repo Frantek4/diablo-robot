@@ -17,6 +17,7 @@ class VpnCommand(commands.Cog):
 
     @commands.command(name="vpn")
     async def vpn(self, ctx):
+        """Te genera una config de WireGuard y te la manda por DM."""
         username = ctx.author.name
         loop = asyncio.get_running_loop()
 

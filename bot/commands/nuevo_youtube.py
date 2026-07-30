@@ -10,7 +10,7 @@ class NuevoYouTube(commands.Cog):
 
     @commands.command(name='nuevo_youtube')
     async def nuevo_influencer(self, ctx, account_id: str, username: str, description: str, source: str):
-        
+        """Suscribe un canal de YouTube para avisar cuando suba un video."""
         try:
             source_enum = NewsSource(source.lower())
             platform_enum = SocialMedia.YOUTUBE

@@ -37,6 +37,7 @@ class DiabloRobot(commands.Bot):
     async def setup_hook(self):
         await self.load_extension('bot.cogs.fixture_event_creator')
         await self.load_extension('bot.cogs.event_lifecycle_manager')
+        await self.load_extension('bot.commands.ayuda')
         await self.load_extension('bot.commands.ping')
         await self.load_extension('bot.commands.fijate')
         await self.load_extension('bot.commands.nuevo_juego')
@@ -77,6 +78,9 @@ class DiabloRobot(commands.Bot):
         if message.author == self.user:
             return
         if message.channel.id == settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
+            await self.process_commands(message)
+            return
+        if message.content.startswith((f"{settings.PREFIX}help", f"{settings.PREFIX}ayuda")):
             await self.process_commands(message)
             return
         if message.channel.id == settings.GENERAL_TEXT_CHANNEL_ID and message.content.startswith(f"{settings.PREFIX}vpn"):

@@ -141,10 +141,11 @@ class TransmitirCommand(commands.Cog):
             async with session.ws_connect(ws_url) as ws:
                 await self._fullscreen_player(ws)
 
-    @commands.command(name="transmitir")
+    @commands.command(name="transmitir", extras={"admin": True})
     @commands.has_permissions(manage_roles=True)
     @commands.guild_only()
     async def transmitir(self, ctx, *, arg: str = None):
+        """Transmite una URL de video por el navegador. Usá 'APAGAR' para cortar la transmisión."""
         if not arg or arg.strip().upper() == _APAGAR:
             await self._stop()
             await self.bot.messager.log("Transmisión apagada.")

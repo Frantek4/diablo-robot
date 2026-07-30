@@ -10,7 +10,7 @@ class NuevoTwitter(commands.Cog):
 
     @commands.command(name='nuevo_twitter')
     async def nuevo_influencer(self, ctx, username: str, description: str, source: str):
-        
+        """Suscribe una cuenta de Twitter/X para avisar cuando publique."""
         try:
             source_enum = NewsSource(source.lower())
             platform_enum = SocialMedia.TWITTER

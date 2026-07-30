@@ -7,10 +7,10 @@ class FijateCommand(commands.Cog):
         self.bot = bot
         self.fixture_event_creator = FixtureEventCreator(bot)
     
-    @commands.command(name='fijate')
+    @commands.command(name='fijate', extras={"admin": True})
     @commands.has_permissions(manage_guild=True)
     async def fijate(self, ctx):
-        """Manually trigger fixture check"""
+        """Busca los próximos partidos a mano, sin esperar el chequeo automático."""
         await self.bot.messager.log("Buscando los próximos partidos a manopla.")
         for team in Teams:
             await self.fixture_event_creator.upsert_next_fixture_event(team)

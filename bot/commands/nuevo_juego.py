@@ -12,11 +12,12 @@ class NuevoJuegoCommand(commands.Cog):
 
 
 
-    @commands.command(name="nuevo_juego")
+    @commands.command(name="nuevo_juego", extras={"admin": True})
     @commands.has_permissions(manage_roles=True, manage_channels=True)
     @commands.guild_only()
     async def nuevo_juego(self, ctx, *, game_name: str):
-        
+        """Crea el rol y el canal de un juego nuevo. Necesita una imagen adjunta para el catálogo."""
+
         channel_name = to_kebab_case(game_name)
         guild: discord.Guild = ctx.guild 
 
