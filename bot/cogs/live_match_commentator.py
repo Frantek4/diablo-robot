@@ -31,18 +31,16 @@ class LiveMatchCommentator(commands.Cog):
             task.cancel()
         self._tracking_tasks.clear()
 
-    async def start_tracking(self, match_id: str, fixture_id: str):
-        logger.info(f"start_tracking llamado: match_id={match_id} fixture_id={fixture_id}")
+    async def start_tracking(self, match_id: str, fixture_id: str, resume: bool = False):
         if match_id in self.active_trackers:
             logger.info(f"start_tracking: {match_id} ya está en active_trackers, ignorando")
             return
-        task = asyncio.create_task(self._track_match(match_id, fixture_id))
+        logger.info(f"start_tracking: match_id={match_id} fixture_id={fixture_id} resume={resume}")
+        task = asyncio.create_task(self._track_match(match_id, fixture_id, resume))
         self._tracking_tasks.add(task)
         task.add_done_callback(self._tracking_tasks.discard)
-        logger.info(f"start_tracking: tarea creada para {match_id}")
 
-    async def _track_match(self, match_id: str, fixture_id: str):
-        logger.info(f"_track_match: iniciando loop para {match_id}")
+    async def _track_match(self, match_id: str, fixture_id: str, resume: bool = False):
         self.active_trackers[match_id] = {
             "seen_events": set(),
             "lineups_sent": False,
@@ -50,11 +48,18 @@ class LiveMatchCommentator(commands.Cog):
             "empty_responses": 0,
         }
         if self.bot.messager:
-            await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
+            if resume:
+                await self.bot.messager.log(f"Retomo el seguimiento del partido {match_id} tras un reinicio.")
+            else:
+                await self.bot.messager.log(f"Comenzando el seguimiento del partido {match_id} en vivo.")
         try:
             async with aiohttp.ClientSession() as session:
+                if resume:
+                    primer = await self._fetch_game(session, match_id)
+                    if primer:
+                        self._prime_seen_state(match_id, primer)
+
                 while True:
-                    logger.info(f"_track_match: ciclo fetch para {match_id}")
                     try:
                         game = await self._fetch_game(session, match_id)
                         if game is None:
@@ -77,27 +82,12 @@ class LiveMatchCommentator(commands.Cog):
 
                         status_enum = game.get("status", {}).get("enum", 0)
                         status_name = game.get("status", {}).get("name", "")
-                        game_time = game.get("game_time_status_to_display", "?")
                         scores = game.get("scores", [0, 0])
-                        seen_count = len(self.active_trackers[match_id]["seen_events"])
-
-                        logger.info(
-                            f"_track_match: {match_id} | status={status_name}({status_enum}) "
-                            f"tiempo={game_time} | marcador={_safe_score(scores[0])}-{_safe_score(scores[1])} "
-                            f"| eventos vistos={seen_count}"
-                        )
-                        if self.bot.messager:
-                            await self.bot.messager.log(
-                                f"[relator] {match_id} | {status_name} {game_time} | "
-                                f"{_safe_score(scores[0])}-{_safe_score(scores[1])} | "
-                                f"eventos vistos: {seen_count}"
-                            )
 
                         if not self.active_trackers[match_id]["lineups_sent"]:
                             lineups_data = game.get("players", {}).get("lineups", {})
-                            logger.info(f"_track_match: lineups_data presente={bool(lineups_data)}")
                             if lineups_data:
-                                await self._send_lineups(game)
+                                await self._send_lineups(game, fixture_id)
                                 self.active_trackers[match_id]["lineups_sent"] = True
                                 logger.info(f"_track_match: formaciones enviadas para {match_id}")
 
@@ -108,7 +98,6 @@ class LiveMatchCommentator(commands.Cog):
                             for row in stage.get("rows", [])
                             if row.get("events")
                         )
-                        logger.info(f"_track_match: has_real_events={has_real_events}")
 
                         if (status_enum in (1, 2)
                                 and "entretiempo" not in status_name.lower()
@@ -152,10 +141,8 @@ class LiveMatchCommentator(commands.Cog):
 
     async def _fetch_game(self, session: aiohttp.ClientSession, match_id: str) -> dict | None:
         url = f"{self.api_url}{match_id}"
-        logger.info(f"_fetch_game: GET {url}")
         try:
             async with session.get(url, headers=self.headers) as resp:
-                logger.info(f"_fetch_game: status HTTP {resp.status} para {match_id}")
                 if resp.status != 200:
                     if self.bot.messager:
                         await self.bot.messager.log(
@@ -163,42 +150,62 @@ class LiveMatchCommentator(commands.Cog):
                         )
                     return None
                 raw = await resp.text()
-                logger.info(f"_fetch_game: raw response (primeros 300 chars): {raw[:300]!r}")
                 try:
                     data = json.loads(raw)
                 except Exception as json_err:
-                    logger.error(f"_fetch_game: no pude parsear JSON: {json_err}")
+                    logger.error(f"_fetch_game: no pude parsear JSON para {match_id}: {json_err}")
                     return None
-                logger.info(f"_fetch_game: top-level keys={list(data.keys()) if isinstance(data, dict) else type(data).__name__}")
-                game = data.get("game")
-                logger.info(f"_fetch_game: game presente={game is not None}, keys={list(game.keys()) if game else None}")
-                return game
+                return data.get("game")
         except Exception as e:
             logger.exception(f"_fetch_game: excepción para {match_id}: {e}")
             if self.bot.messager:
                 await self.bot.messager.log(f"Falló la llamada a la API para {match_id}: {e}", level="ERROR", exc=e)
             return None
 
-    async def _send_lineups(self, game: dict):
-        logger.info("_send_lineups: armando embed de formaciones")
-        embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.blue())
+    def _prime_seen_state(self, match_id: str, game: dict):
+        """Al retomar el tracking tras un reinicio, marca como ya vistos los eventos y
+        formaciones que la API ya reporta, para no reanunciar todo el partido de nuevo."""
+        tracker = self.active_trackers[match_id]
+        if game.get("players", {}).get("lineups", {}):
+            tracker["lineups_sent"] = True
+        for stage in game.get("events", []):
+            scores = stage.get("scores", [0, 0])
+            if stage.get("show_stage_title", False) and scores[0] is not None and float(scores[0]) >= 0:
+                tracker["seen_events"].add(f"stage_{stage.get('name')}")
+            for row in stage.get("rows", []):
+                time = row.get("time")
+                for event in row.get("events", []):
+                    texts = "-".join(event.get("texts", []))
+                    tracker["seen_events"].add(f"{time}_{event.get('type')}_{texts}")
+        logger.info(
+            f"_prime_seen_state: {match_id} retomado con {len(tracker['seen_events'])} eventos ya vistos, "
+            f"lineups_sent={tracker['lineups_sent']}"
+        )
+
+    async def _send_lineups(self, game: dict, fixture_id: str):
+        embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.red())
         for team in game.get("players", {}).get("lineups", {}).get("teams", []):
             team_name = game["teams"][team["team_num"] - 1]["name"]
             players = [f"**{p['jersey_num']}** {p['player_short_name']}" for p in team.get("starting", [])]
             embed.add_field(name=f"{team_name} ({team['formation']})", value="\n".join(players), inline=True)
-        venue = game.get('game_info', [{}])[0].get('value', 'Estadio no especificado')
-        await self.bot.messager.commentator_update(f"Inicio del encuentro en: {venue}", embed=embed)
+
+        teams = game.get("teams", [{}, {}])
+        home_name = teams[0].get("name", "Local")
+        away_name = teams[1].get("name", "Visitante") if len(teams) > 1 else "Visitante"
+
+        fixture = self.bot.fixture_dao.get_fixture_by_id(fixture_id)
+        venue = fixture.venue if fixture and fixture.venue else "estadio no especificado"
+
+        await self.bot.messager.commentator_update(f"{home_name} vs {away_name} en {venue}", embed=embed)
 
     async def _process_events(self, match_id: str, game: dict):
         teams = game.get("teams", [])
         stages = game.get("events", [])
-        logger.info(f"_process_events: {len(stages)} etapas para {match_id}")
         for stage in stages:
             stage_name = stage.get("name")
             stage_key = f"stage_{stage_name}"
             scores = stage.get('scores', [0, 0])
             rows = stage.get("rows", [])
-            logger.info(f"_process_events: etapa '{stage_name}', show_title={stage.get('show_stage_title')}, scores={scores}, rows={len(rows)}")
 
             if (stage_key not in self.active_trackers[match_id]["seen_events"]
                     and stage.get("show_stage_title", False)
@@ -207,7 +214,6 @@ class LiveMatchCommentator(commands.Cog):
                 score_away = _safe_score(scores[1])
                 home_name = teams[0].get("name", "Local") if teams else "Local"
                 away_name = teams[1].get("name", "Visitante") if len(teams) > 1 else "Visitante"
-                logger.info(f"_process_events: anunciando etapa '{stage_name}'")
                 await self.bot.messager.commentator_update(
                     f"{stage_name}. {home_name} {score_home} - {score_away} {away_name}"
                 )
@@ -226,9 +232,8 @@ class LiveMatchCommentator(commands.Cog):
                     team_idx = event.get("team", 1) - 1
                     team_name = teams[team_idx]["name"] if team_idx < len(teams) else "Desconocido"
                     msg = self._format_event(time, event_type, event.get("texts", []), team_name)
-                    logger.info(f"_process_events: evento nuevo type={event_type} time={time} team={team_name} -> msg={msg!r}")
-
                     if msg:
+                        logger.info(f"_process_events: {match_id} evento nuevo: {msg}")
                         await self.bot.messager.commentator_update(msg)
 
                     self.active_trackers[match_id]["seen_events"].add(event_id)

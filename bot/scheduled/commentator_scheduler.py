@@ -24,21 +24,13 @@ class CommentatorScheduler(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_upcoming_matches(self):
-        logger.info("check_upcoming_matches: tick")
         try:
             next_match = self.bot.fixture_dao.get_next_match()
             if not next_match:
-                logger.info("check_upcoming_matches: no hay próximo partido en la DB")
                 return
             if not next_match.match_id or not next_match.id:
                 logger.warning(f"check_upcoming_matches: partido sin match_id o id: {next_match}")
                 return
-
-            logger.info(
-                f"check_upcoming_matches: próximo partido = {next_match.match_id} "
-                f"({next_match.home_team} vs {next_match.away_team}), "
-                f"status={next_match.status}, fecha={next_match.match_date}"
-            )
 
             commentator = self.bot.get_cog('LiveMatchCommentator')
             if commentator is None:
@@ -46,25 +38,23 @@ class CommentatorScheduler(commands.Cog):
                 return
 
             if next_match.match_id in commentator.active_trackers:
-                logger.info(f"check_upcoming_matches: {next_match.match_id} ya está siendo trackeado")
                 return
 
             now = datetime.now(settings.TIMEZONE)
             time_to_match = next_match.match_date - now
-            logger.info(f"check_upcoming_matches: tiempo al partido = {time_to_match}")
 
             if time_to_match > timedelta(minutes=30):
-                logger.info("check_upcoming_matches: faltan más de 30 minutos, esperando")
                 return
 
-            logger.info(f"check_upcoming_matches: arrancando tracking de {next_match.match_id}")
+            # Si ya estaba LIVE (y no es este tick el que lo pone en LIVE), es que el bot
+            # se reinició a mitad del partido: retomamos sin reanunciar todo lo ya visto.
+            resume = next_match.status == FixtureStatus.LIVE
 
             if next_match.status == FixtureStatus.SCHEDULED:
                 self.bot.fixture_dao.update_status(next_match.id, FixtureStatus.LIVE)
-                logger.info(f"check_upcoming_matches: status actualizado a LIVE para {next_match.id}")
 
-            await commentator.start_tracking(next_match.match_id, next_match.id)
-            logger.info(f"check_upcoming_matches: start_tracking llamado para {next_match.match_id}")
+            logger.info(f"check_upcoming_matches: arrancando tracking de {next_match.match_id} (resume={resume})")
+            await commentator.start_tracking(next_match.match_id, next_match.id, resume=resume)
 
         except Exception as e:
             logger.exception(f"check_upcoming_matches: excepción no manejada: {e}")
