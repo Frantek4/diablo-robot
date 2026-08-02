@@ -133,17 +133,22 @@ class Twitter:
         influencers: List[InfluencerModel] = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
         one_week_ago = datetime.now(settings.TIMEZONE) - timedelta(days=7)
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        failures = 0
 
         async with aiohttp.ClientSession() as session:
             for influencer in influencers:
                 try:
-                    await self._process_influencer(session, influencer, one_week_ago, headers)
-                except Exception as e:
-                    name = influencer.get("name", "unknown") if isinstance(influencer, dict) else str(influencer)
-                    await self.bot.messager.log(f"No pude procesar el feed de Twitter de {name}: {e}", level="ERROR", exc=e)
-                await asyncio.sleep(8)
+                    ok = await self._process_influencer(session, influencer, one_week_ago, headers)
+                    if not ok:
+                        failures += 1
+                except Exception:
+                    failures += 1
+                await asyncio.sleep(25)
 
-    async def _process_influencer(self, session, influencer, one_week_ago, headers):
+        if failures:
+            await self.bot.messager.log(f"No pude leer {failures} feed(s) de Twitter (rate limit o error de Nitter).", level="WARNING")
+
+    async def _process_influencer(self, session, influencer, one_week_ago, headers) -> bool:
         name = influencer["name"]
         feed_url = f"{self.rss_bridge_url}/{name}/rss"
 
@@ -151,25 +156,20 @@ class Twitter:
             if response.status == 429:
                 retry_after = response.headers.get("Retry-After")
                 backoff = int(retry_after) if retry_after and retry_after.isdigit() else 30
-                await self.bot.messager.log(f"Nitter me rate-limiteó pidiendo el feed de {name} (429), espero {backoff}s.", level="WARNING")
                 await asyncio.sleep(backoff)
-                return
+                return False
             if response.status != 200:
-                await self.bot.messager.log(f"No pude obtener el RSS de {name} en Twitter (HTTP {response.status}).", level="WARNING")
-                return
+                return False
 
             content = (await response.read()).decode("utf-8", errors="replace")
             feed = feedparser.parse(content)
 
         if not feed.entries:
-            return
+            return True
 
         for entry in reversed(feed.entries):
             parsed = parse_entry(entry, influencer)
             if not parsed:
-                tweet_url = entry.get("link", "")
-                if tweet_url:
-                    await self.bot.messager.log(f"No pude parsear la URL del tweet de {name}: {tweet_url}", level="WARNING")
                 continue
 
             if parsed["published_date"] < one_week_ago:
@@ -189,3 +189,5 @@ class Twitter:
             )
             self.bot.news_dao.insert(parsed["url"])
             await asyncio.sleep(1)
+
+        return True
