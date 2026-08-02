@@ -141,13 +141,19 @@ class Twitter:
                 except Exception as e:
                     name = influencer.get("name", "unknown") if isinstance(influencer, dict) else str(influencer)
                     await self.bot.messager.log(f"No pude procesar el feed de Twitter de {name}: {e}", level="ERROR", exc=e)
-                await asyncio.sleep(2)
+                await asyncio.sleep(8)
 
     async def _process_influencer(self, session, influencer, one_week_ago, headers):
         name = influencer["name"]
         feed_url = f"{self.rss_bridge_url}/{name}/rss"
 
         async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
+            if response.status == 429:
+                retry_after = response.headers.get("Retry-After")
+                backoff = int(retry_after) if retry_after and retry_after.isdigit() else 30
+                await self.bot.messager.log(f"Nitter me rate-limiteó pidiendo el feed de {name} (429), espero {backoff}s.", level="WARNING")
+                await asyncio.sleep(backoff)
+                return
             if response.status != 200:
                 await self.bot.messager.log(f"No pude obtener el RSS de {name} en Twitter (HTTP {response.status}).", level="WARNING")
                 return

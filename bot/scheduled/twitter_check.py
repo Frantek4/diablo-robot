@@ -15,7 +15,7 @@ class TwitterCheckScheduler(commands.Cog):
         if not self.twitter_scheduled_job.is_running():
             self.twitter_scheduled_job.start()
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=20)
     async def twitter_scheduled_job(self):
         try:
             await self.twitter.check_rss_notifications()
