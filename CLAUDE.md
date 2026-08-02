@@ -46,6 +46,7 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 6. **Social media** (`twitter_check.py`, `youtube_check.py`, `instagram_check.py`): fetches RSS/scrapes → posts new entries to configured channels
 7. **Minecraft status** (`bot/scheduled/minecraft_check.py`, 1min loop): consulta el server de Minecraft por Server List Ping (`integrations/minecraft.py`, vía `mcstatus`) a través de la VPN de WireGuard y mantiene un único mensaje "banner" editado en `#minecraft` con si está prendido y quién está jugando. El ID de ese mensaje vive en `MINECRAFT_STATUS_MESSAGE_ID` (no en Mongo); si no está seteado, el bot crea uno nuevo y loguea el ID para que se persista a mano en el `.env`
 8. **Music agent** (`bot/listeners/music_agent.py`): listens on `MUSIC_TEXT_CHANNEL_ID`; translates natural-language requests into Jockie Music commands via DeepSeek API; executes them by sending messages as a proxy user account (`NOT_ROBOT_DEVIL_USER_TOKEN`); moves the proxy user to/from the requester's voice channel to make Jockie follow along
+9. **Hardware monitor** (`bot/scheduled/hardware_monitor_check.py`, 1min loop): consulta un agente HTTP standalone (`hwmonitor_agent/`, corre en la PC de Minecraft, no en el bot) vía `integrations/hardware_monitor.py` a través de la VPN de WireGuard, y mantiene un banner editado en `#robot-devil` con CPU/RAM/disco/uptime/temperaturas de esa PC (forénsica de los cuelgues de hardware que sufre esa máquina). A diferencia del banner de Minecraft, cuando la PC no responde el banner **no se edita** (queda mostrando la última performance conocida antes de la caída) y en su lugar se postea un mensaje de alerta aparte (`messager.hardware_monitor_alert`) con esas últimas métricas; otro mensaje avisa cuando vuelve. El estado (online/offline, último snapshot, historial de caídas) se persiste en la colección `hardware_monitor` vía `HardwareMonitorDAO`, así sobrevive reinicios del bot. El agente también reporta el Kernel-Power Event ID 41 más reciente del Event Log de Windows (apagado no controlado), que el banner resalta si es reciente.
 
 ### Key Patterns
 
@@ -63,6 +64,7 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 | `games` | Game channels: game_name, message_id, text_channel_id |
 | `news` | URL deduplication to prevent duplicate news posts |
 | `influencers` | Social media accounts: platform, account_id, source type |
+| `hardware_monitor` | Latest hardware snapshot + online/offline transition log for the Minecraft PC (see `HardwareMonitorDAO`) |
 
 ### Teams Tracked
 
@@ -82,6 +84,7 @@ All defined in `config/settings.py`. Required vars are also validated at startup
 - `DJ_COMMAND_PREFIX` — Jockie Music command prefix (default: `m!`)
 - Channel IDs: `GENERAL_TEXT_CHANNEL_ID`, `ANNOUNCEMENTS_TEXT_CHANNEL_ID`, `CLUB_TEXT_CHANNEL_ID`, `PRESS_TEXT_CHANNEL_ID`, `COMMENTATOR_TEXT_CHANNEL_ID`, `GAMES_TEXT_CHANNEL_ID`, `ROBOT_DEVIL_TEXT_CHANNEL_ID`, `MUSIC_TEXT_CHANNEL_ID`, `MINECRAFT_TEXT_CHANNEL_ID`
 - `MINECRAFT_SERVER_HOST`, `MINECRAFT_SERVER_PORT` — cómo alcanzar el server de Minecraft dentro de la VPN de WireGuard (default `e-cai.mc:25565`); `MINECRAFT_STATUS_MESSAGE_ID` — ID del mensaje-banner en `#minecraft` que el scheduler edita en vez de recrear (opcional; si falta, el bot crea uno y loguea el ID a mano)
+- `HARDWARE_MONITOR_HOST`, `HARDWARE_MONITOR_PORT` — cómo alcanzar el agente de hardware (`hwmonitor_agent/`) en la PC de Minecraft dentro de la VPN de WireGuard (default puerto `8788`); `HARDWARE_MONITOR_TOKEN` — token compartido enviado como header `X-Auth-Token` (debe matchear `HWMON_TOKEN` del agente); `HARDWARE_MONITOR_STATUS_MESSAGE_ID` — ID del mensaje-banner en `#robot-devil` (opcional; mismo mecanismo manual que `MINECRAFT_STATUS_MESSAGE_ID`)
 - `GENERAL_VOICE_CHANNEL_ID`, `TERMOS_VOICE_CHANNEL_ID`, `IDLE_VOICE_CHANNEL_ID` — Voice channels used for events and proxy user idle state
 - `GAMES_CATEGORY_ID` — Category ID for game channels
 - `FOOTBALL_FORUM_ID` — Forum channel for match discussion

@@ -93,6 +93,20 @@ class Messager:
                 pass
         return await self.minecraft_channel.send(embed=embed)
 
+    async def hardware_monitor_status(self, embed: discord.Embed, message_id: int = None) -> discord.Message:
+        """Edita el banner de estado de hardware de la PC de Minecraft si existe, o crea uno nuevo."""
+        if message_id:
+            try:
+                message = await self.devil_robot_channel.fetch_message(message_id)
+                await message.edit(embed=embed)
+                return message
+            except discord.NotFound:
+                pass
+        return await self.devil_robot_channel.send(embed=embed)
+
+    async def hardware_monitor_alert(self, msg: str):
+        await self.devil_robot_channel.send(msg)
+
     async def announce_interactive(self, msg: str, view):
         await self.announcements_channel.send(msg, view=view)
 

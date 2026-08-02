@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     MINECRAFT_SERVER_HOST: str = "e-cai.mc"
     MINECRAFT_SERVER_PORT: int = 25565
     MINECRAFT_STATUS_MESSAGE_ID: int | None = None
+    HARDWARE_MONITOR_HOST: str = ""
+    HARDWARE_MONITOR_PORT: int = 8788
+    HARDWARE_MONITOR_TOKEN: str = ""
+    HARDWARE_MONITOR_STATUS_MESSAGE_ID: int | None = None
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod
