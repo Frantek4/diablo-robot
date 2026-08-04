@@ -43,10 +43,10 @@ class Messager:
         if missing_channels:
             raise RuntimeError(f"Canales no encontrados: {', '.join(str(c) for c in missing_channels)}. Revisá las configuraciones.")
 
-    async def commentator_update(self, msg: str, embed: discord.Embed = None):
+    async def commentator_update(self, msg: str, embed: discord.Embed = None, file: discord.File = None):
         """Envía una actualización sobre el partido en vivo"""
         if embed:
-            await self.commentator_channel.send(content=msg, embed=embed)
+            await self.commentator_channel.send(content=msg, embed=embed, file=file)
         else:
             await self.commentator_channel.send(msg)
 

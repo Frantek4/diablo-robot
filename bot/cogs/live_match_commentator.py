@@ -6,12 +6,14 @@ import discord
 from discord.ext import commands
 from config.settings import settings
 from models.fixture_status import FixtureStatus
+from bot.ui.formation_pitch import render_lineups, lineup_confirmed
 
 logger = logging.getLogger(__name__)
 
 MAX_EMPTY_RESPONSES = 5
 POLL_INTERVAL_SECONDS = 30
 STATUS_FINISHED = 3
+CAI_RED = discord.Color.from_str("#E3131E")
 
 EVENTS = {
     "GOAL": 1,
@@ -260,15 +262,24 @@ class LiveMatchCommentator(commands.Cog):
         return roster
 
     async def _send_lineups(self, game: dict):
-        embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.red())
+        embed = discord.Embed(title="Formaciones", color=CAI_RED)
         for team in game.get("players", {}).get("lineups", {}).get("teams", []):
             team_data = game["teams"][team["team_num"] - 1]
             team_name = team_data["name"]
             short_name = _team_short_name(team_data)
             players = [f"**{p['jersey_num']}** {p['player_short_name']}" for p in team.get("starting", [])]
-            embed.add_field(name=f"{team_name} ({short_name}) [{team['formation']}]", value="\n".join(players), inline=True)
+            confirmed_tag = "" if lineup_confirmed(team) else " [Formación sin confirmar]"
+            embed.add_field(
+                name=f"{team_name} ({short_name}) [{team['formation']}]{confirmed_tag}", value="\n".join(players), inline=True
+            )
 
-        await self.bot.messager.commentator_update("", embed=embed)
+        file = None
+        pitch_image = render_lineups(game)
+        if pitch_image:
+            file = discord.File(pitch_image, filename="formacion.png")
+            embed.set_image(url="attachment://formacion.png")
+
+        await self.bot.messager.commentator_update("", embed=embed, file=file)
 
     async def _process_events(self, match_id: str, game: dict, status_enum: int):
         teams = game.get("teams", [])
