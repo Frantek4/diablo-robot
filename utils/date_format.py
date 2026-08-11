@@ -17,6 +17,10 @@ def format_datetime(dt: datetime) -> str:
     return to_local(dt).strftime("%d/%m/%Y %H:%M")
 
 
+def format_time(dt: datetime) -> str:
+    return to_local(dt).strftime("%H:%M")
+
+
 def parse_date_ddmmyyyy(text: str) -> date | None:
     """Parses 'weekday DD/M/YYYY' or plain 'DD/M/YYYY'. Returns None if unparseable."""
     part = text.strip().split()[-1]

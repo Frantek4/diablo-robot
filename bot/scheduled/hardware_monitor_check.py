@@ -5,6 +5,7 @@ from discord.ext import commands, tasks
 from config.settings import settings
 from integrations import hardware_monitor
 from models.hardware_snapshot import HardwareSnapshot, format_duration
+from utils.date_format import format_time
 
 
 class HardwareMonitorCheckScheduler(commands.Cog):
@@ -101,7 +102,7 @@ class HardwareMonitorCheckScheduler(commands.Cog):
         if snapshot.last_unclean_shutdown and (now - snapshot.last_unclean_shutdown) < timedelta(hours=2):
             embed.add_field(
                 name="⚠️ Apagado inesperado",
-                value=f"Windows detectó un apagado no controlado a las {snapshot.last_unclean_shutdown.strftime('%H:%M')}",
+                value=f"Windows detectó un apagado no controlado a las {format_time(snapshot.last_unclean_shutdown)}",
                 inline=False
             )
 

@@ -3,52 +3,70 @@ import aiohttp
 import json
 import logging
 import discord
+from datetime import datetime, timedelta
 from discord.ext import commands
 from config.settings import settings
 from models.fixture_status import FixtureStatus
+from bot.ui.formation_pitch import render_lineups, lineup_confirmed
 
 logger = logging.getLogger(__name__)
 
 MAX_EMPTY_RESPONSES = 5
 POLL_INTERVAL_SECONDS = 30
 STATUS_FINISHED = 3
-YELLOW_CARD = 4
-RED_CARD = 5
-SUBSTITUTION = 15
+CAI_RED = discord.Color.from_str("#E3131E")
+
+EVENTS = {
+    "GOAL": 1,
+    "OWN_GOAL": 2,
+    "PENALTY_GOAL": 3,
+    "YELLOW_CARD": 4,
+    "RED_CARD": 5,
+    "SECOND_YELLOW_RED": 6,
+    "PENALTY_MISSED": 7,
+    "DISALLOWED_GOAL": 9,
+    "POST": 10,
+    "SUBSTITUTION": 15,
+}
+
+SCORE_CHANGING_EVENTS = {EVENTS["GOAL"], EVENTS["OWN_GOAL"], EVENTS["PENALTY_GOAL"]}
 
 
 def _safe_score(value) -> int:
-    return int(value) if value is not None and float(value) >= 0 else 0
+    return int(value) if value is not None else 0
 
 
 def _fmt_time(time) -> str:
     return f"{str(time).rstrip(chr(39))}'" if time is not None else "?'"
 
 
-def _bold_player(name: str, jersey_num) -> str:
-    return f"{name} **[{jersey_num}]**" if jersey_num is not None else name
-
-
-def _player_display(name: str, roster: dict, jersey_num=None) -> str:
-    return _bold_player(name, jersey_num if jersey_num is not None else roster.get(name))
+def _fmt_player(name: str, roster: dict, jersey_num=None) -> str:
+    num = jersey_num if jersey_num is not None else roster.get(name)
+    return f"{name} **[{num}]**" if num is not None else name
 
 
 def _team_names(teams: list) -> tuple[str, str]:
-    home_name = teams[0].get("name", "Local") if teams else "Local"
-    away_name = teams[1].get("name", "Visitante") if len(teams) > 1 else "Visitante"
-    return home_name, away_name
+    return teams[0].get("name", "Local"), teams[1].get("name", "Visitante")
+
+
+def _team_short_name(team: dict) -> str:
+    short_name = team.get("short_name")
+    if short_name:
+        return short_name
+    name = team.get("name")
+    if not name:
+        return "?"
+    return "".join(word[0].upper() for word in name.split())
 
 
 def _stay_suffix(team_name: str, players_on_field: int | None) -> str:
-    return f" - {team_name} se queda con {players_on_field}" if players_on_field is not None else ""
+    return f" ({team_name} queda con {players_on_field})" if players_on_field is not None else ""
 
 
 def _score_line(game: dict, teams: list) -> str:
     scores = game.get("scores", [0, 0])
-    score_home = _safe_score(scores[0])
-    score_away = _safe_score(scores[1])
     home_name, away_name = _team_names(teams)
-    return f"{home_name} {score_home}-{score_away} {away_name}"
+    return f"{home_name} {_safe_score(scores[0])}-{_safe_score(scores[1])} {away_name}"
 
 
 class LiveMatchCommentator(commands.Cog):
@@ -80,10 +98,12 @@ class LiveMatchCommentator(commands.Cog):
     def _new_tracker_state(self) -> dict:
         return {
             "seen_events": set(),
-            "lineups_sent": False,
-            "low_coverage_warned": False,
+            "start_sent": False,
             "empty_responses": 0,
             "roster": {},
+            "on_field": {},
+            "last_scores": None,
+            "goal_event_seen": False,
         }
 
     async def _track_match(self, match_id: str, fixture_id: str, resume: bool = False):
@@ -129,12 +149,11 @@ class LiveMatchCommentator(commands.Cog):
         tracker["empty_responses"] = 0
 
         status_enum = game.get("status", {}).get("enum", 0)
-        status_name = game.get("status", {}).get("name", "")
         scores = game.get("scores", [0, 0])
 
-        await self._maybe_send_lineups(match_id, game, fixture_id)
+        await self._announce_start(match_id, game, fixture_id, status_enum)
         await self._process_events(match_id, game, status_enum)
-        await self._maybe_warn_low_coverage(match_id, game, status_enum, status_name, scores)
+        await self._check_score_fallback(match_id, game, status_enum)
 
         if status_enum == STATUS_FINISHED:
             await self._announce_final(match_id, fixture_id, game, scores)
@@ -159,42 +178,32 @@ class LiveMatchCommentator(commands.Cog):
         self.bot.fixture_dao.update_status(fixture_id, FixtureStatus.FINISHED)
         return True
 
-    async def _maybe_send_lineups(self, match_id: str, game: dict, fixture_id: str):
+    async def _announce_start(self, match_id: str, game: dict, fixture_id: str, status_enum: int):
+        """Anuncia el arranque del partido la primera vez que hay estado en vivo, o si no,
+        en cuanto pasan 2 minutos de la hora acordada (algunos partidos de cobertura nula
+        nunca pasan a estado en vivo). Si en ese momento ya están las formaciones, las manda
+        también (aparte); si no llegaron a tiempo, no importan más."""
         tracker = self.active_trackers[match_id]
-        if tracker["lineups_sent"]:
+        if tracker["start_sent"]:
             return
+
+        fixture = self.bot.fixture_dao.get_fixture_by_id(fixture_id)
+        live = status_enum in (1, 2)
+        overdue = fixture and datetime.now(settings.TIMEZONE) >= fixture.match_date + timedelta(minutes=2)
+        if not live and not overdue:
+            return
+
         lineups_data = game.get("players", {}).get("lineups", {})
-        if not lineups_data:
-            return
+        if lineups_data:
+            tracker["roster"], tracker["on_field"] = self._build_roster(game)
+            await self._send_lineups(game)
+            logger.info(f"_track_match: formaciones enviadas para {match_id}")
 
-        tracker["roster"] = self._build_roster(game)
-        await self._send_lineups(game, fixture_id)
-        tracker["lineups_sent"] = True
-        logger.info(f"_track_match: formaciones enviadas para {match_id}")
-
-    async def _maybe_warn_low_coverage(self, match_id: str, game: dict, status_enum: int, status_name: str, scores: list):
-        tracker = self.active_trackers[match_id]
-        if tracker["low_coverage_warned"]:
-            return
-        if status_enum not in (1, 2) or "entretiempo" in status_name.lower():
-            return
-
-        has_real_events = any(
-            row for stage in game.get("events", [])
-            for row in stage.get("rows", [])
-            if row.get("events")
-        )
-        if has_real_events:
-            return
-
-        logger.warning(f"_track_match: baja cobertura detectada para {match_id}")
-        if self.bot.messager:
-            await self.bot.messager.log(
-                f"Estoy siguiendo el partido {match_id} pero Promiedos no reporta eventos "
-                f"(baja cobertura). Marcador: {_safe_score(scores[0])}-{_safe_score(scores[1])}.",
-                level="WARNING"
-            )
-        tracker["low_coverage_warned"] = True
+        home_name, away_name = _team_names(game.get("teams", [{}, {}]))
+        venue = fixture.venue if fixture and fixture.venue else "estadio no especificado"
+        await self.bot.messager.commentator_update(f"⚽ {home_name} vs {away_name} 🏟️ {venue}")
+        tracker["start_sent"] = True
+        logger.info(f"_track_match: arranque anunciado para {match_id} (live={live}, overdue={overdue})")
 
     async def _announce_final(self, match_id: str, fixture_id: str, game: dict, scores: list):
         logger.info(f"_track_match: partido {match_id} finalizado, cerrando loop")
@@ -236,8 +245,12 @@ class LiveMatchCommentator(commands.Cog):
         formaciones que la API ya reporta, para no reanunciar todo el partido de nuevo."""
         tracker = self.active_trackers[match_id]
         if game.get("players", {}).get("lineups", {}):
-            tracker["lineups_sent"] = True
-            tracker["roster"] = self._build_roster(game)
+            tracker["start_sent"] = True
+            tracker["roster"], tracker["on_field"] = self._build_roster(game)
+        elif game.get("status", {}).get("enum", 0) in (1, 2):
+            tracker["start_sent"] = True
+        scores = game.get("scores", [0, 0])
+        tracker["last_scores"] = (_safe_score(scores[0]), _safe_score(scores[1]))
         for stage in game.get("events", []):
             scores = stage.get("scores", [0, 0])
             if stage.get("show_stage_title", False) and scores[0] is not None and float(scores[0]) >= 0:
@@ -245,54 +258,60 @@ class LiveMatchCommentator(commands.Cog):
             for row in stage.get("rows", []):
                 time = row.get("time")
                 for event in row.get("events", []):
-                    texts = "-".join(event.get("texts", []))
-                    tracker["seen_events"].add(f"{time}_{event.get('type')}_{texts}")
+                    event_texts = event.get("texts", [])
+                    tracker["seen_events"].add(f"{time}_{event.get('type')}_{'-'.join(event_texts)}")
+                    if event.get("type") == EVENTS["SUBSTITUTION"] and len(event_texts) > 1:
+                        team_idx = event.get("team", 1) - 1
+                        if team_idx in tracker["on_field"]:
+                            tracker["on_field"][team_idx].discard(event_texts[1])
+                            tracker["on_field"][team_idx].add(event_texts[0])
         logger.info(
             f"_prime_seen_state: {match_id} retomado con {len(tracker['seen_events'])} eventos ya vistos, "
-            f"lineups_sent={tracker['lineups_sent']}"
+            f"start_sent={tracker['start_sent']}"
         )
 
-    def _count_yellows(self, game: dict, player_name: str) -> int:
-        """Cuenta cuántas amarillas lleva un jugador en el partido (incluye la actual),
-        para poder detectar si una amarilla nueva es en realidad la segunda (= expulsión)."""
-        count = 0
-        for stage in game.get("events", []):
-            for row in stage.get("rows", []):
-                for ev in row.get("events", []):
-                    if ev.get("type") == YELLOW_CARD and ev.get("texts", [None])[0] == player_name:
-                        count += 1
-        return count
-
-    def _build_roster(self, game: dict) -> dict:
+    def _build_roster(self, game: dict) -> tuple[dict, dict]:
         """Mapea nombre completo de jugador -> dorsal, para poder mostrar el número
-        en eventos (como los cambios) que no lo traen incluido."""
+        en eventos (como los cambios) que no lo traen incluido. También junta, por
+        equipo, quiénes arrancaron en la cancha (para no contar como "jugador menos"
+        a alguien expulsado desde el banco o el cuerpo técnico)."""
         roster = {}
+        on_field = {}
         for team in game.get("players", {}).get("lineups", {}).get("teams", []):
+            team_idx = team.get("team_num", 1) - 1
+            on_field[team_idx] = {p["name"] for p in team.get("starting", []) if p.get("name")}
             for player in team.get("starting", []) + team.get("bench", []):
                 if player.get("name") and player.get("jersey_num") is not None:
                     roster[player["name"]] = player["jersey_num"]
-        return roster
+        return roster, on_field
 
-    async def _send_lineups(self, game: dict, fixture_id: str):
-        embed = discord.Embed(title="Formaciones confirmadas", color=discord.Color.red())
+    async def _send_lineups(self, game: dict):
+        embed = discord.Embed(title="Formaciones", color=CAI_RED)
         for team in game.get("players", {}).get("lineups", {}).get("teams", []):
-            team_name = game["teams"][team["team_num"] - 1]["name"]
+            team_data = game["teams"][team["team_num"] - 1]
+            team_name = team_data["name"]
+            short_name = _team_short_name(team_data)
             players = [f"**{p['jersey_num']}** {p['player_short_name']}" for p in team.get("starting", [])]
-            embed.add_field(name=f"{team_name} ({team['formation']})", value="\n".join(players), inline=True)
+            confirmed_tag = "" if lineup_confirmed(team) else " [Formación sin confirmar]"
+            embed.add_field(
+                name=f"{team_name} ({short_name}) [{team['formation']}]{confirmed_tag}", value="\n".join(players), inline=True
+            )
 
-        home_name, away_name = _team_names(game.get("teams", [{}, {}]))
-        fixture = self.bot.fixture_dao.get_fixture_by_id(fixture_id)
-        venue = fixture.venue if fixture and fixture.venue else "estadio no especificado"
+        file = None
+        pitch_image = render_lineups(game)
+        if pitch_image:
+            file = discord.File(pitch_image, filename="formacion.png")
+            embed.set_image(url="attachment://formacion.png")
 
-        await self.bot.messager.commentator_update(f"⚽ {home_name} vs {away_name} 🏟️ {venue}", embed=embed)
+        await self.bot.messager.commentator_update("", embed=embed, file=file)
 
     async def _process_events(self, match_id: str, game: dict, status_enum: int):
-        teams = game.get("teams", [])
+        teams = game.get("teams", [{}, {}])
         for stage in game.get("events", []):
-            await self._maybe_announce_stage_title(match_id, stage, teams, status_enum)
+            await self._announce_stage_title(match_id, stage, teams, status_enum)
             await self._process_row_events(match_id, game, teams, stage.get("rows", []))
 
-    async def _maybe_announce_stage_title(self, match_id: str, stage: dict, teams: list, status_enum: int):
+    async def _announce_stage_title(self, match_id: str, stage: dict, teams: list, status_enum: int):
         stage_name = stage.get("name")
         stage_key = f"stage_{stage_name}"
         scores = stage.get("scores", [0, 0])
@@ -328,54 +347,90 @@ class LiveMatchCommentator(commands.Cog):
                 if event_id in tracker["seen_events"]:
                     continue
 
-                team_idx = event.get("team", 1) - 1
-                team_name = teams[team_idx]["name"] if team_idx < len(teams) else "Desconocido"
+                if event_type in SCORE_CHANGING_EVENTS:
+                    tracker["goal_event_seen"] = True
 
-                msg = self._format_event(time, event, team_name, teams, team_idx, game, tracker["roster"])
+                team_idx = event.get("team", 1) - 1
+                team_name = _team_short_name(teams[team_idx]) if team_idx < len(teams) else "Desconocido"
+
+                msg = await self._format_event(time, event, team_name, teams, team_idx, game, tracker)
                 if msg:
                     logger.info(f"_process_events: {match_id} evento nuevo: {msg}")
                     await self.bot.messager.commentator_update(msg)
 
                 tracker["seen_events"].add(event_id)
 
-    def _format_event(
-        self, time: str, event: dict, team_name: str, teams: list, team_idx: int, game: dict, roster: dict
+    async def _check_score_fallback(self, match_id: str, game: dict, status_enum: int):
+        """Algunos partidos (cobertura nula) actualizan el marcador en `scores` sin nunca
+        reportar el evento de gol correspondiente. Si el marcador cambió y no vimos un
+        evento de gol este ciclo que lo explique, avisamos el cambio sin autor."""
+        tracker = self.active_trackers[match_id]
+        scores = game.get("scores", [0, 0])
+        current = (_safe_score(scores[0]), _safe_score(scores[1]))
+        previous = tracker["last_scores"]
+        goal_event_seen = tracker["goal_event_seen"]
+
+        tracker["last_scores"] = current
+        tracker["goal_event_seen"] = False
+
+        if previous is None or current == previous or goal_event_seen or status_enum == STATUS_FINISHED:
+            return
+
+        teams = game.get("teams", [{}, {}])
+        home_name, away_name = _team_names(teams)
+        t = _fmt_time(game.get("game_time"))
+        await self.bot.messager.commentator_update(
+            f"⚽ Se movió el marcador (no tengo quién convirtió): {home_name} {current[0]}-{current[1]} {away_name} {{{t}}}"
+        )
+        logger.info(f"_track_match: {match_id} marcador cambió sin evento de gol, aviso fallback: {previous} -> {current}")
+
+    async def _format_event(
+        self, time: str, event: dict, team_name: str, teams: list, team_idx: int, game: dict, tracker: dict
     ) -> str | None:
+        roster = tracker["roster"]
         e_type = event.get("type")
         texts = event.get("texts", [])
         player = texts[0] if texts else "Alguien"
-        player_str = _player_display(player, roster, jersey_num=event.get("player_jersey_num"))
+        player_str = _fmt_player(player, roster, jersey_num=event.get("player_jersey_num"))
         t = _fmt_time(time)
 
         players_on_field = None
-        if e_type in (YELLOW_CARD, RED_CARD) and 0 <= team_idx < len(teams):
-            red_cards = teams[team_idx].get("red_cards")
-            if red_cards is not None:
-                players_on_field = max(0, 11 - int(red_cards))
+        if e_type in (EVENTS["RED_CARD"], EVENTS["SECOND_YELLOW_RED"]) and player in tracker["on_field"].get(team_idx, ()):
+            tracker["on_field"][team_idx].discard(player)
+            players_on_field = len(tracker["on_field"][team_idx])
 
-        if e_type == 1:
-            assist = f" (asiste {_player_display(texts[1], roster)})" if len(texts) > 1 else ""
+        if e_type == EVENTS["GOAL"]:
+            assist = f" (asiste {_fmt_player(texts[1], roster)})" if len(texts) > 1 else ""
             return f"⚽ Gol de {player_str} {assist}. {_score_line(game, teams)} {{{t}}}"
-        if e_type == 2:
+        if e_type == EVENTS["OWN_GOAL"]:
             return f"⚽ Gol en contra de {player_str}. {_score_line(game, teams)} {{{t}}}"
-        if e_type == YELLOW_CARD:
-            if self._count_yellows(game, player) >= 2:
-                return f"🟨🟥 Segunda amarilla para {player_str}.{_stay_suffix(team_name, players_on_field)} {{{t}}}"
-            return f"🟨 Amarilla para {player_str} de {team_name} {{{t}}}"
-        if e_type == RED_CARD:
-            return f"🟥 Roja directa para {player_str}.{_stay_suffix(team_name, players_on_field)} {{{t}}}"
-        if e_type == 7:
+        if e_type == EVENTS["PENALTY_GOAL"]:
             return f"🎯 Gol de penal de {player_str}. {_score_line(game, teams)} {{{t}}}"
-        if e_type == 8:
-            return f"❌ Penal errado de {player_str} ({team_name} {{{t}}}"
-        if e_type == 10:
-            return f"🥅💥 ¡PALO! {player_str} de {team_name} {{{t}}}"
-        if e_type == SUBSTITUTION:
+        if e_type == EVENTS["DISALLOWED_GOAL"]:
+            scorer = texts[1] if len(texts) > 1 else "Alguien"
+            scorer_str = _fmt_player(scorer, roster, jersey_num=event.get("player_jersey_num"))
+            return f"🚫 Gol anulado de {scorer_str} ({team_name}) {{{t}}}"
+        if e_type == EVENTS["YELLOW_CARD"]:
+            return f"🟨 Amarilla para {player_str} ({team_name}) {{{t}}}"
+        if e_type == EVENTS["SECOND_YELLOW_RED"]:
+            return f"🟨🟥 Segunda amarilla para {player_str}.{_stay_suffix(team_name, players_on_field)} {{{t}}}"
+        if e_type == EVENTS["RED_CARD"]:
+            return f"🟥 Roja directa para {player_str}.{_stay_suffix(team_name, players_on_field)} {{{t}}}"
+        if e_type == EVENTS["PENALTY_MISSED"]:
+            return f"❌ Penal errado de {player_str} ({team_name}) {{{t}}}"
+        if e_type == EVENTS["POST"]:
+            return f"🥅💥 ¡PALO! {player_str} ({team_name}) {{{t}}}"
+        if e_type == EVENTS["SUBSTITUTION"]:
             out_player = texts[1] if len(texts) > 1 else "N/A"
-            in_str = _player_display(player, roster)
-            out_str = _player_display(out_player, roster)
-            return f"🔀 Cambio en {team_name}: 🔼 {in_str} 🔽 {out_str} {{{t}}}"
+            in_str = _fmt_player(player, roster)
+            out_str = _fmt_player(out_player, roster)
+            if team_idx in tracker["on_field"]:
+                tracker["on_field"][team_idx].discard(out_player)
+                tracker["on_field"][team_idx].add(player)
+            return f"🔀 Cambio ({team_name}): 🔼 {in_str} 🔽 {out_str} {{{t}}}"
 
+        if self.bot.messager:
+            await self.bot.messager.log(f"No reconozco este evento del partido: {event}", level="ERROR")
         return None
 
 
