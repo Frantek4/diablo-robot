@@ -17,6 +17,7 @@ class HardwareSnapshot:
     cpu_temp_c: Optional[float] = None
     gpu_temp_c: Optional[float] = None
     last_unclean_shutdown: Optional[datetime] = None
+    viewpower_running: Optional[bool] = None
 
     def to_dict(self) -> dict:
         return {
@@ -30,6 +31,7 @@ class HardwareSnapshot:
             "cpu_temp_c": self.cpu_temp_c,
             "gpu_temp_c": self.gpu_temp_c,
             "last_unclean_shutdown": self.last_unclean_shutdown,
+            "viewpower_running": self.viewpower_running,
         }
 
     @classmethod
@@ -45,6 +47,7 @@ class HardwareSnapshot:
             cpu_temp_c=data.get("cpu_temp_c"),
             gpu_temp_c=data.get("gpu_temp_c"),
             last_unclean_shutdown=parse_datetime(data["last_unclean_shutdown"]) if data.get("last_unclean_shutdown") else None,
+            viewpower_running=data.get("viewpower_running"),
         )
 
 

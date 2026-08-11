@@ -105,6 +105,9 @@ class HardwareMonitorCheckScheduler(commands.Cog):
                 inline=False
             )
 
+        if snapshot.viewpower_running is False:
+            embed.add_field(name="⚠️ ViewPower", value="No está corriendo (sin monitoreo del UPS)", inline=False)
+
         embed.set_footer(text=f"{settings.HARDWARE_MONITOR_HOST}:{settings.HARDWARE_MONITOR_PORT}")
         return embed
 

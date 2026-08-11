@@ -1,9 +1,9 @@
 # hwmonitor_agent
 
 Agente HTTP mínimo para Windows que expone métricas de hardware (CPU, RAM,
-disco, uptime, temperaturas y apagados no controlados) en `GET /metrics`, para
-que Diablo Robot lo consulte por la VPN de WireGuard y mantenga el banner de
-estado en el canal de admin (`#robot-devil`).
+disco, uptime, temperaturas, apagados no controlados y si está corriendo
+ViewPower) en `GET /metrics`, para que Diablo Robot lo consulte por la VPN de
+WireGuard y mantenga el banner de estado en el canal de admin (`#robot-devil`).
 
 Corre en la PC que hostea Minecraft, **no** en la máquina donde vive el bot.
 
@@ -65,7 +65,8 @@ solo en cada boot, sin depender de que alguien inicie sesión:
   "boot_time": "2026-07-30T08:12:00",
   "cpu_temp_c": 54.3,
   "gpu_temp_c": 48.1,
-  "last_unclean_shutdown": "2026-07-30T08:11:52"
+  "last_unclean_shutdown": "2026-07-30T08:11:52",
+  "viewpower_running": true
 }
 ```
 
@@ -74,3 +75,9 @@ encontrado en los últimos 30 días del Event Log de System — es la señal má
 directa de un cuelgue/crash de hardware (a diferencia de un apagado
 prendido/apagado normal, que no genera ese evento). El bot lo usa para marcar
 en el banner cuando el apagado inesperado fue reciente.
+
+`viewpower_running` indica si el proceso `ViewPower.exe` (monitoreo del UPS)
+está corriendo en esa PC. El agente lo busca por nombre entre los procesos
+activos con `psutil`; si en algún momento se reinstala ViewPower con otro
+nombre de ejecutable, hay que actualizar `VIEWPOWER_PROCESS_NAME` en
+`agent.py`. El bot marca una advertencia en el banner cuando está en `false`.
