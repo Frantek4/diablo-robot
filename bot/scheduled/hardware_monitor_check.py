@@ -99,15 +99,19 @@ class HardwareMonitorCheckScheduler(commands.Cog):
 
         embed.add_field(name="Uptime", value=format_duration(snapshot.uptime_seconds), inline=True)
 
+        if snapshot.viewpower_running is not None:
+            embed.add_field(
+                name="ViewPower",
+                value="✅ ON" if snapshot.viewpower_running else "⚠️ OFF",
+                inline=True
+            )
+
         if snapshot.last_unclean_shutdown and (now - snapshot.last_unclean_shutdown) < timedelta(hours=2):
             embed.add_field(
                 name="⚠️ Apagado inesperado",
                 value=f"Windows detectó un apagado no controlado a las {format_time(snapshot.last_unclean_shutdown)}",
                 inline=False
             )
-
-        if snapshot.viewpower_running is False:
-            embed.add_field(name="⚠️ ViewPower", value="No está corriendo (sin monitoreo del UPS)", inline=False)
 
         embed.set_footer(text=f"{settings.HARDWARE_MONITOR_HOST}:{settings.HARDWARE_MONITOR_PORT}")
         return embed
