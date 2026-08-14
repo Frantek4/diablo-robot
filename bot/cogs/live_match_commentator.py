@@ -380,7 +380,7 @@ class LiveMatchCommentator(commands.Cog):
         home_name, away_name = _team_names(teams)
         t = _fmt_time(game.get("game_time"))
         await self.bot.messager.commentator_update(
-            f"⚽ Se movió el marcador (no tengo quién convirtió): {home_name} {current[0]}-{current[1]} {away_name} {{{t}}}"
+            f"⚽ {home_name} {current[0]}-{current[1]} {away_name} {{{t}}}"
         )
         logger.info(f"_track_match: {match_id} marcador cambió sin evento de gol, aviso fallback: {previous} -> {current}")
 

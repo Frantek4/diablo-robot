@@ -48,6 +48,12 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 8. **Music agent** (`bot/listeners/music_agent.py`): listens on `MUSIC_TEXT_CHANNEL_ID`; translates natural-language requests into Jockie Music commands via DeepSeek API; executes them by sending messages as a proxy user account (`NOT_ROBOT_DEVIL_USER_TOKEN`); moves the proxy user to/from the requester's voice channel to make Jockie follow along
 9. **Hardware monitor** (`bot/scheduled/hardware_monitor_check.py`, 1min loop): consulta un agente HTTP standalone (`hwmonitor_agent/`, corre en la PC de Minecraft, no en el bot) vía `integrations/hardware_monitor.py` a través de la VPN de WireGuard, y mantiene un banner editado en `#robot-devil` con CPU/RAM/disco/uptime/temperaturas de esa PC (forénsica de los cuelgues de hardware que sufre esa máquina). A diferencia del banner de Minecraft, cuando la PC no responde el banner **no se edita** (queda mostrando la última performance conocida antes de la caída) y en su lugar se postea un mensaje de alerta aparte (`messager.hardware_monitor_alert`) con esas últimas métricas; otro mensaje avisa cuando vuelve. El estado (online/offline, último snapshot, historial de caídas) se persiste en la colección `hardware_monitor` vía `HardwareMonitorDAO`, así sobrevive reinicios del bot. El agente también reporta el Kernel-Power Event ID 41 más reciente del Event Log de Windows (apagado no controlado), que el banner resalta si es reciente.
 
+   El mismo scheduler monitorea la **red** en dos tramos, porque el bot llega a esa PC **siempre por el túnel de WireGuard** (aunque las máquinas estén en la misma red local, no se asume nunca el camino LAN):
+   - **Internet de la PC**: lo mide el agente en un thread aparte cada 30s y lo cachea en el campo `network` de `/metrics` — latencia/jitter/pérdida contra un host público, latencia contra el router (para separar "se cayó internet" de "se cayó la red local"), tiempo de resolución DNS, tráfico en curso y un test de velocidad de bajada periódico. Todas las latencias se miden con handshakes TCP, no ICMP (sin permisos especiales ni parsear `ping.exe`).
+   - **Túnel de WireGuard**: lo mide el bot (`hardware_monitor.measure_vpn_link()`) pegándole 4 veces al endpoint liviano `GET /ping` del agente, para no contaminar la medición con el tiempo que tarda en armarse `/metrics`.
+
+   Cuando internet se cae pero la PC sigue respondiendo, se postea un aviso aparte (con 1 chequeo de gracia para no avisar por un microcorte) y otro cuando vuelve; los microcortes y la lentitud no generan aviso pero quedan registrados en Mongo (`kind: "network_degradation"`) y el banner muestra cuántos hubo en las últimas 24 h.
+
 ### Key Patterns
 
 - All DAOs follow: `insert()`, `get_*()`, `exists()`, `upsert()`, `update_*()` — raw PyMongo, no ORM
@@ -64,7 +70,7 @@ Requires MongoDB running (see `DATABASE_URL` in `.env`). All required environmen
 | `games` | Game channels: game_name, message_id, text_channel_id |
 | `news` | URL deduplication to prevent duplicate news posts |
 | `influencers` | Social media accounts: platform, account_id, source type |
-| `hardware_monitor` | Latest hardware snapshot + online/offline transition log for the Minecraft PC (see `HardwareMonitorDAO`) |
+| `hardware_monitor` | Latest hardware + network snapshot, online/offline transition log (PC e internet) y registro de microcortes de red de la PC de Minecraft (see `HardwareMonitorDAO`) |
 
 ### Teams Tracked
 
