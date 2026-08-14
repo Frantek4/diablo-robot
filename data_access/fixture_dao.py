@@ -53,6 +53,16 @@ class FixtureDAO:
             return Fixture.from_dict(result, doc_id=str(result['_id']))
         return None
 
+    def update_seen_events(self, fixture_id: str, seen_events: List[str]):
+        self.collection.update_one(
+            {"_id": ObjectId(fixture_id)},
+            {"$set": {"commentator_seen_events": seen_events}}
+        )
+
+    def get_seen_events(self, fixture_id: str) -> List[str]:
+        doc = self.collection.find_one({"_id": ObjectId(fixture_id)}, {"commentator_seen_events": 1})
+        return doc.get("commentator_seen_events", []) if doc else []
+
     def get_fixtures_by_competition(self, competition: str) -> List[Fixture]:
         cursor = self.collection.find({"competition": competition}).sort("match_date", 1)
         return [Fixture.from_dict(item, doc_id=str(item['_id'])) for item in cursor]

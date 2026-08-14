@@ -1,6 +1,7 @@
 # hwmonitor_agent
 
 Agente HTTP mínimo para Windows que expone métricas de hardware (CPU, RAM,
+<<<<<<< HEAD
 disco, uptime, temperaturas y apagados no controlados) y de red (latencia,
 jitter, pérdida de paquetes, DNS, tráfico y velocidad de bajada) en
 `GET /metrics`, para que Diablo Robot lo consulte por la VPN de WireGuard y
@@ -9,6 +10,11 @@ mantenga el banner de estado en el canal de admin (`#robot-devil`).
 También expone `GET /ping`, que devuelve `pong` sin hacer nada más: el bot lo
 usa para medir la latencia, el jitter y la pérdida del túnel de WireGuard sin
 que el tiempo de armado de las métricas ensucie la medición.
+=======
+disco, uptime, temperaturas, apagados no controlados y si está corriendo
+ViewPower) en `GET /metrics`, para que Diablo Robot lo consulte por la VPN de
+WireGuard y mantenga el banner de estado en el canal de admin (`#robot-devil`).
+>>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
 
 Corre en la PC que hostea Minecraft, **no** en la máquina donde vive el bot.
 
@@ -81,6 +87,7 @@ solo en cada boot, sin depender de que alguien inicie sesión:
   "cpu_temp_c": 54.3,
   "gpu_temp_c": 48.1,
   "last_unclean_shutdown": "2026-07-30T08:11:52",
+<<<<<<< HEAD
   "network": {
     "measured_at": "2026-08-14T17:20:31",
     "gateway_target": "192.168.0.1:80",
@@ -96,6 +103,9 @@ solo en cada boot, sin depender de que alguien inicie sesión:
     "download_mbps": 87.5,
     "download_at": "2026-08-14T16:51:02"
   }
+=======
+  "viewpower_running": true
+>>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
 }
 ```
 
@@ -105,6 +115,7 @@ directa de un cuelgue/crash de hardware (a diferencia de un apagado
 prendido/apagado normal, que no genera ese evento). El bot lo usa para marcar
 en el banner cuando el apagado inesperado fue reciente.
 
+<<<<<<< HEAD
 ## Cómo se mide la red
 
 Un thread aparte mide cada 30 segundos y deja el resultado cacheado, así
@@ -121,3 +132,10 @@ dice tanto.
 `recv_mbps`/`sent_mbps` son el tráfico real que pasó por las interfaces en el
 último ciclo (no es capacidad, es uso); `download_mbps` sí es una medición de
 capacidad y se refresca cada `HWMON_SPEEDTEST_MINUTES`.
+=======
+`viewpower_running` indica si el proceso `ViewPower.exe` (monitoreo del UPS)
+está corriendo en esa PC. El agente lo busca por nombre entre los procesos
+activos con `psutil`; si en algún momento se reinstala ViewPower con otro
+nombre de ejecutable, hay que actualizar `VIEWPOWER_PROCESS_NAME` en
+`agent.py`. El bot marca una advertencia en el banner cuando está en `false`.
+>>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb

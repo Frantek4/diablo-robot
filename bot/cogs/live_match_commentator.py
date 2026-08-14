@@ -118,7 +118,7 @@ class LiveMatchCommentator(commands.Cog):
                 if resume:
                     primer = await self._fetch_game(session, match_id)
                     if primer:
-                        self._prime_seen_state(match_id, primer)
+                        self._prime_seen_state(match_id, fixture_id, primer)
 
                 while True:
                     try:
@@ -153,6 +153,7 @@ class LiveMatchCommentator(commands.Cog):
 
         await self._announce_start(match_id, game, fixture_id, status_enum)
         await self._process_events(match_id, game, status_enum)
+        self.bot.fixture_dao.update_seen_events(fixture_id, list(tracker["seen_events"]))
         await self._check_score_fallback(match_id, game, status_enum)
 
         if status_enum == STATUS_FINISHED:
@@ -240,9 +241,14 @@ class LiveMatchCommentator(commands.Cog):
                 await self.bot.messager.log(f"Falló la llamada a la API para {match_id}: {e}", level="ERROR", exc=e)
             return None
 
-    def _prime_seen_state(self, match_id: str, game: dict):
-        """Al retomar el tracking tras un reinicio, marca como ya vistos los eventos y
-        formaciones que la API ya reporta, para no reanunciar todo el partido de nuevo."""
+    def _prime_seen_state(self, match_id: str, fixture_id: str, game: dict):
+        """Al retomar el tracking tras un reinicio, reconstruye roster/on_field/marcador desde
+        la API (siempre al día) y restaura qué eventos ya se anunciaron desde lo persistido en
+        Mongo. Usar lo que ya trae la API como "ya visto" está mal: un evento puede haber
+        aparecido recién durante la ventana de downtime del reinicio, sin que llegáramos a
+        anunciarlo nunca, y si lo tratamos como ya visto lo perdemos para siempre. Solo si no
+        hay nada persistido (nunca llegamos a trackear este partido) caemos a derivar de la API,
+        para no reanunciar el partido entero desde el minuto 0."""
         tracker = self.active_trackers[match_id]
         if game.get("players", {}).get("lineups", {}):
             tracker["start_sent"] = True
@@ -251,23 +257,31 @@ class LiveMatchCommentator(commands.Cog):
             tracker["start_sent"] = True
         scores = game.get("scores", [0, 0])
         tracker["last_scores"] = (_safe_score(scores[0]), _safe_score(scores[1]))
+
+        persisted = self.bot.fixture_dao.get_seen_events(fixture_id)
+
         for stage in game.get("events", []):
-            scores = stage.get("scores", [0, 0])
-            if stage.get("show_stage_title", False) and scores[0] is not None and float(scores[0]) >= 0:
+            stage_scores = stage.get("scores", [0, 0])
+            if not persisted and stage.get("show_stage_title", False) and stage_scores[0] is not None and float(stage_scores[0]) >= 0:
                 tracker["seen_events"].add(f"stage_{stage.get('name')}")
             for row in stage.get("rows", []):
                 time = row.get("time")
                 for event in row.get("events", []):
                     event_texts = event.get("texts", [])
-                    tracker["seen_events"].add(f"{time}_{event.get('type')}_{'-'.join(event_texts)}")
+                    if not persisted:
+                        tracker["seen_events"].add(f"{time}_{event.get('type')}_{'-'.join(event_texts)}")
                     if event.get("type") == EVENTS["SUBSTITUTION"] and len(event_texts) > 1:
                         team_idx = event.get("team", 1) - 1
                         if team_idx in tracker["on_field"]:
                             tracker["on_field"][team_idx].discard(event_texts[1])
                             tracker["on_field"][team_idx].add(event_texts[0])
+
+        if persisted:
+            tracker["seen_events"] = set(persisted)
+
         logger.info(
-            f"_prime_seen_state: {match_id} retomado con {len(tracker['seen_events'])} eventos ya vistos, "
-            f"start_sent={tracker['start_sent']}"
+            f"_prime_seen_state: {match_id} retomado con {len(tracker['seen_events'])} eventos ya vistos "
+            f"({'persistidos' if persisted else 'derivados de la API'}), start_sent={tracker['start_sent']}"
         )
 
     def _build_roster(self, game: dict) -> tuple[dict, dict]:
@@ -409,7 +423,7 @@ class LiveMatchCommentator(commands.Cog):
         if e_type == EVENTS["DISALLOWED_GOAL"]:
             scorer = texts[1] if len(texts) > 1 else "Alguien"
             scorer_str = _fmt_player(scorer, roster, jersey_num=event.get("player_jersey_num"))
-            return f"🚫 Gol anulado de {scorer_str} ({team_name}) {{{t}}}"
+            return f"🚫 Gol anulado: {_score_line(game, teams)} {{{t}}}"
         if e_type == EVENTS["YELLOW_CARD"]:
             return f"🟨 Amarilla para {player_str} ({team_name}) {{{t}}}"
         if e_type == EVENTS["SECOND_YELLOW_RED"]:

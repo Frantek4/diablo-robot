@@ -167,8 +167,17 @@ class HardwareMonitorCheckScheduler(commands.Cog):
 
         embed.add_field(name="Uptime", value=format_duration(snapshot.uptime_seconds), inline=True)
 
+<<<<<<< HEAD
         self._add_internet_field(embed, snapshot.network, self._recent_microcuts(now))
         self._add_vpn_field(embed, snapshot.vpn_link)
+=======
+        if snapshot.viewpower_running is not None:
+            embed.add_field(
+                name="ViewPower",
+                value="✅ ON" if snapshot.viewpower_running else "⚠️ OFF",
+                inline=True
+            )
+>>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
 
         if snapshot.last_unclean_shutdown and (now - snapshot.last_unclean_shutdown) < timedelta(hours=2):
             embed.add_field(

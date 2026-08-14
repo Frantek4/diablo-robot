@@ -1,7 +1,14 @@
 """
+<<<<<<< HEAD
 Agente HTTP mínimo para exponer métricas de hardware y de red de una PC Windows
 (CPU, RAM, disco, uptime, temperaturas, apagados no controlados y performance de
 internet) para que Diablo Robot lo consulte por la VPN de WireGuard.
+=======
+Agente HTTP mínimo para exponer métricas de hardware de una PC Windows
+(CPU, RAM, disco, uptime, temperaturas, apagados no controlados y si está
+corriendo ViewPower) para que Diablo Robot lo consulte por la VPN de
+WireGuard.
+>>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
 
 Config vía variables de entorno:
   HWMON_PORT               - puerto donde escuchar (default 8788)
@@ -40,6 +47,18 @@ SPEEDTEST_URL = os.environ.get(
 LIBRE_HARDWARE_MONITOR_URL = "http://localhost:8085/data.json"
 KERNEL_POWER_EVENT_ID = 41
 KERNEL_POWER_SOURCE = "Microsoft-Windows-Kernel-Power"
+VIEWPOWER_PROCESS_NAME = "ViewPower.exe"
+
+
+def is_viewpower_running() -> bool:
+    """Chequea si el proceso de ViewPower (monitoreo del UPS) está corriendo."""
+    for process in psutil.process_iter(["name"]):
+        try:
+            if process.info["name"] and process.info["name"].lower() == VIEWPOWER_PROCESS_NAME.lower():
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return False
 
 NETWORK_PROBE_SECONDS = 30
 PROBE_SAMPLES = 4
@@ -233,6 +252,7 @@ def build_metrics() -> dict:
     uptime_seconds = (datetime.now() - boot_time).total_seconds()
     cpu_temp, gpu_temp = get_temperatures()
     last_unclean_shutdown = get_last_unclean_shutdown()
+    viewpower_running = is_viewpower_running()
 
     return {
         "cpu_percent": cpu_percent,
@@ -245,7 +265,11 @@ def build_metrics() -> dict:
         "cpu_temp_c": cpu_temp,
         "gpu_temp_c": gpu_temp,
         "last_unclean_shutdown": last_unclean_shutdown.isoformat() if last_unclean_shutdown else None,
+<<<<<<< HEAD
         "network": get_network(),
+=======
+        "viewpower_running": viewpower_running,
+>>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
     }
 
 
