@@ -115,12 +115,9 @@ class HardwareSnapshot:
     cpu_temp_c: Optional[float] = None
     gpu_temp_c: Optional[float] = None
     last_unclean_shutdown: Optional[datetime] = None
-<<<<<<< HEAD
+    viewpower_running: Optional[bool] = None
     network: Optional[NetworkSnapshot] = None
     vpn_link: Optional[VpnLink] = None
-=======
-    viewpower_running: Optional[bool] = None
->>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
 
     def to_dict(self) -> dict:
         return {
@@ -134,12 +131,9 @@ class HardwareSnapshot:
             "cpu_temp_c": self.cpu_temp_c,
             "gpu_temp_c": self.gpu_temp_c,
             "last_unclean_shutdown": self.last_unclean_shutdown,
-<<<<<<< HEAD
+            "viewpower_running": self.viewpower_running,
             "network": self.network.to_dict() if self.network else None,
             "vpn_link": self.vpn_link.to_dict() if self.vpn_link else None,
-=======
-            "viewpower_running": self.viewpower_running,
->>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
         }
 
     @classmethod
@@ -155,12 +149,9 @@ class HardwareSnapshot:
             cpu_temp_c=data.get("cpu_temp_c"),
             gpu_temp_c=data.get("gpu_temp_c"),
             last_unclean_shutdown=parse_datetime(data["last_unclean_shutdown"]) if data.get("last_unclean_shutdown") else None,
-<<<<<<< HEAD
+            viewpower_running=data.get("viewpower_running"),
             network=NetworkSnapshot.from_dict(data["network"]) if data.get("network") else None,
             vpn_link=VpnLink.from_dict(data["vpn_link"]) if data.get("vpn_link") else None,
-=======
-            viewpower_running=data.get("viewpower_running"),
->>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
         )
 
 

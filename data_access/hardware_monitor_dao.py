@@ -9,13 +9,16 @@ class HardwareMonitorDAO:
     def __init__(self):
         self.collection = db['hardware_monitor']
 
-    def save_latest(self, snapshot: Optional[HardwareSnapshot], is_online: bool, internet_online: bool = True):
+    def save_latest(self, snapshot: Optional[HardwareSnapshot], is_online: bool, internet_online: bool = True,
+                    last_heartbeat: Optional[datetime] = None):
+        """last_heartbeat = última vez que la PC me contestó, para saber de cuándo son las métricas guardadas."""
         self.collection.update_one(
             {"_id": "latest"},
             {"$set": {
                 "kind": "latest",
                 "is_online": is_online,
                 "internet_online": internet_online,
+                "last_heartbeat": last_heartbeat,
                 "snapshot": snapshot.to_dict() if snapshot else None,
             }},
             upsert=True

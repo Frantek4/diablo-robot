@@ -5,7 +5,7 @@ from discord.ext import commands, tasks
 from config.settings import settings
 from integrations import hardware_monitor
 from models.hardware_snapshot import HardwareSnapshot, NetworkSnapshot, VpnLink, format_duration
-from utils.date_format import format_time
+from utils.date_format import format_datetime, format_time, parse_datetime
 
 INTERNET_FAILURES_BEFORE_ALERT = 2
 
@@ -19,6 +19,7 @@ class HardwareMonitorCheckScheduler(commands.Cog):
         self.is_online = state["is_online"] if state else True
         self.last_snapshot = HardwareSnapshot.from_dict(state["snapshot"]) if state and state.get("snapshot") else None
         self.internet_online = state.get("internet_online", True) if state else True
+        self.last_heartbeat = parse_datetime(state["last_heartbeat"]) if state and state.get("last_heartbeat") else None
         self.went_offline_at = None
         self.internet_went_offline_at = None
         self.internet_failures = 0
@@ -40,9 +41,10 @@ class HardwareMonitorCheckScheduler(commands.Cog):
                 snapshot.vpn_link = await hardware_monitor.measure_vpn_link()
 
                 if not self.is_online:
+                    since = self.went_offline_at or self.last_heartbeat
                     downtime = (
-                        f" (estuvo caída {format_duration((now - self.went_offline_at).total_seconds())})"
-                        if self.went_offline_at else ""
+                        f" (estuvo caída {format_duration((now - since).total_seconds())})"
+                        if since else ""
                     )
                     await self.bot.messager.hardware_monitor_alert(f"✅ Volvió la PC de Minecraft{downtime}.")
                     self.bot.hardware_monitor_dao.log_transition(is_online=True, snapshot=snapshot, timestamp=now)
@@ -50,8 +52,11 @@ class HardwareMonitorCheckScheduler(commands.Cog):
 
                 self.is_online = True
                 self.last_snapshot = snapshot
+                self.last_heartbeat = now
                 await self._check_network(snapshot, now)
-                self.bot.hardware_monitor_dao.save_latest(snapshot, is_online=True, internet_online=self.internet_online)
+                self.bot.hardware_monitor_dao.save_latest(
+                    snapshot, is_online=True, internet_online=self.internet_online, last_heartbeat=now
+                )
 
                 embed = self._build_embed(snapshot, now)
                 message = await self.bot.messager.hardware_monitor_status(embed, self.banner_message_id)
@@ -64,13 +69,14 @@ class HardwareMonitorCheckScheduler(commands.Cog):
             else:
                 if self.is_online:
                     self.went_offline_at = now
-                    await self.bot.messager.hardware_monitor_alert(self._crash_message())
+                    await self.bot.messager.hardware_monitor_alert(self._crash_message(now))
                     self.bot.hardware_monitor_dao.log_transition(is_online=False, snapshot=self.last_snapshot, timestamp=now)
 
                 self.is_online = False
                 self.internet_failures = 0
                 self.bot.hardware_monitor_dao.save_latest(
-                    self.last_snapshot, is_online=False, internet_online=self.internet_online
+                    self.last_snapshot, is_online=False, internet_online=self.internet_online,
+                    last_heartbeat=self.last_heartbeat
                 )
         except Exception as e:
             await self.bot.messager.log(f"No pude chequear el hardware de la PC de Minecraft: {e}", level="ERROR", exc=e)
@@ -119,9 +125,18 @@ class HardwareMonitorCheckScheduler(commands.Cog):
             return ""
         return f"Ping {network.internet_latency_ms:.0f} ms · pérdida {network.internet_loss_percent:.0f}%."
 
-    def _crash_message(self) -> str:
+    def _heartbeat_line(self, now: datetime) -> str:
+        if self.last_heartbeat is None:
+            return "No tengo registro de la última vez que me contestó."
+        return (
+            f"Último heartbeat: {format_datetime(self.last_heartbeat)} "
+            f"(hace {format_duration((now - self.last_heartbeat).total_seconds())})"
+        )
+
+    def _crash_message(self, now: datetime) -> str:
+        heartbeat = self._heartbeat_line(now)
         if self.last_snapshot is None:
-            return "🔴 Se cayó la PC de Minecraft y no tengo métricas previas."
+            return f"🔴 Se cayó la PC de Minecraft y no tengo métricas previas.\n{heartbeat}"
         s = self.last_snapshot
         temps = ""
         if s.cpu_temp_c is not None:
@@ -144,7 +159,7 @@ class HardwareMonitorCheckScheduler(commands.Cog):
             f"🔴 No me responde más la PC de Minecraft por la VPN (puede estar colgada la PC o caído el túnel). "
             f"Últimas métricas conocidas:\n"
             f"CPU {s.cpu_percent:.0f}% · RAM {s.ram_percent:.0f}% ({s.ram_used_gb:.1f}/{s.ram_total_gb:.1f} GB) · "
-            f"Disco {s.disk_percent:.0f}%{temps}{network}"
+            f"Disco {s.disk_percent:.0f}%{temps}{network}\n{heartbeat}"
         )
 
     def _build_embed(self, snapshot: HardwareSnapshot, now: datetime) -> discord.Embed:
@@ -184,7 +199,10 @@ class HardwareMonitorCheckScheduler(commands.Cog):
                 inline=False
             )
 
-        embed.set_footer(text=f"{settings.HARDWARE_MONITOR_HOST}:{settings.HARDWARE_MONITOR_PORT}")
+        heartbeat = format_datetime(self.last_heartbeat) if self.last_heartbeat else "—"
+        embed.set_footer(
+            text=f"{settings.HARDWARE_MONITOR_HOST}:{settings.HARDWARE_MONITOR_PORT} · último heartbeat {heartbeat}"
+        )
         return embed
 
     def _recent_microcuts(self, now: datetime) -> int:

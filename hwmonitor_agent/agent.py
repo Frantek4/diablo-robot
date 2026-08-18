@@ -1,14 +1,8 @@
 """
-<<<<<<< HEAD
 Agente HTTP mínimo para exponer métricas de hardware y de red de una PC Windows
-(CPU, RAM, disco, uptime, temperaturas, apagados no controlados y performance de
-internet) para que Diablo Robot lo consulte por la VPN de WireGuard.
-=======
-Agente HTTP mínimo para exponer métricas de hardware de una PC Windows
-(CPU, RAM, disco, uptime, temperaturas, apagados no controlados y si está
-corriendo ViewPower) para que Diablo Robot lo consulte por la VPN de
-WireGuard.
->>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
+(CPU, RAM, disco, uptime, temperaturas, apagados no controlados, si está
+corriendo ViewPower y performance de internet) para que Diablo Robot lo
+consulte por la VPN de WireGuard.
 
 Config vía variables de entorno:
   HWMON_PORT               - puerto donde escuchar (default 8788)
@@ -265,11 +259,8 @@ def build_metrics() -> dict:
         "cpu_temp_c": cpu_temp,
         "gpu_temp_c": gpu_temp,
         "last_unclean_shutdown": last_unclean_shutdown.isoformat() if last_unclean_shutdown else None,
-<<<<<<< HEAD
-        "network": get_network(),
-=======
         "viewpower_running": viewpower_running,
->>>>>>> c4acb75fe2ee782e1fb9c1799de30ac2788928cb
+        "network": get_network(),
     }
 
 
