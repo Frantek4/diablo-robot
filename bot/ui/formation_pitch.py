@@ -39,6 +39,15 @@ def lineup_confirmed(lineup: dict) -> bool:
     return (lineup.get("status") or "").strip().lower() == "confirmado"
 
 
+def jersey_str(value) -> str:
+    """Promiedos manda -1 (o nada) cuando no sabe el dorsal del jugador."""
+    try:
+        num = int(value)
+    except (TypeError, ValueError):
+        return "?"
+    return str(num) if num >= 0 else "?"
+
+
 def _text_color(hex_color: str) -> tuple[int, int, int]:
     hex_color = (hex_color or "#FFFFFF").lstrip("#")
     if len(hex_color) != 6:
@@ -121,7 +130,7 @@ def _draw_player(draw: ImageDraw.ImageDraw, player: dict, pos: tuple[float, floa
     r = PLAYER_RADIUS
     draw.ellipse([px - r, py - r, px + r, py + r], fill=fill_color, outline=(255, 255, 255), width=3)
 
-    number = str(player.get("jersey_num", "?"))
+    number = jersey_str(player.get("jersey_num"))
     bbox = draw.textbbox((0, 0), number, font=FONT_NUMBER)
     draw.text((px - (bbox[2] - bbox[0]) / 2, py - (bbox[3] - bbox[1]) / 2 - bbox[1]), number, font=FONT_NUMBER, fill=number_color)
 
@@ -137,6 +146,13 @@ def _draw_player(draw: ImageDraw.ImageDraw, player: dict, pos: tuple[float, floa
     label_y = py + r + 6
     draw.rectangle([px - name_w / 2 - 8, label_y, px + name_w / 2 + 8, label_y + 26], fill=(0, 0, 0, 160))
     draw.text((px - name_w / 2, label_y + 2), name, font=FONT_NAME, fill=(255, 255, 255))
+
+
+def _draw_header_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, y: float, align_left: bool, fill: tuple):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    width = bbox[2] - bbox[0]
+    x = PITCH_LEFT if align_left else PITCH_RIGHT - width
+    draw.text((x, y), text, font=font, fill=fill)
 
 
 def render_lineups(game: dict) -> io.BytesIO | None:
@@ -169,20 +185,17 @@ def render_lineups(game: dict) -> io.BytesIO | None:
             pos = _player_pixel_pos(pitch_location, attacks_downward)
             _draw_player(draw, player, pos, fill_color, number_color)
 
+        # El nombre del arquero cae centrado y pegado al borde de la cancha, así que los
+        # headers van a los costados para no pisarse: el de arriba a la izquierda y el de
+        # abajo a la derecha.
         header = f"{team_data.get('short_name', 'Equipo')} ({lineup.get('formation', '?')})"
-        hbbox = draw.textbbox((0, 0), header, font=FONT_TITLE)
-        header_w = hbbox[2] - hbbox[0]
-        header_x = (CANVAS_W - header_w) / 2
-        header_y = 10 if team_idx == 1 else CANVAS_H - HEADER_H + 10
-        draw.text((header_x, header_y), header, font=FONT_TITLE, fill=(255, 255, 255))
+        header_y = 10 if attacks_downward else CANVAS_H - HEADER_H + 10
+        _draw_header_text(draw, header, FONT_TITLE, header_y, attacks_downward, (255, 255, 255))
 
         if not lineup_confirmed(lineup):
-            subtitle = "[Formación sin confirmar]"
-            sbbox = draw.textbbox((0, 0), subtitle, font=FONT_SUBTITLE)
-            subtitle_w = sbbox[2] - sbbox[0]
-            subtitle_x = (CANVAS_W - subtitle_w) / 2
-            subtitle_y = header_y + 42
-            draw.text((subtitle_x, subtitle_y), subtitle, font=FONT_SUBTITLE, fill=UNCONFIRMED_COLOR)
+            _draw_header_text(
+                draw, "[Formación sin confirmar]", FONT_SUBTITLE, header_y + 42, attacks_downward, UNCONFIRMED_COLOR
+            )
 
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
