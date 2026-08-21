@@ -17,6 +17,7 @@ class TwitterCheckScheduler(commands.Cog):
         self.bot = bot
         self.twitter = Twitter(bot)
         self._cursor = 0
+        self._feeds_disabled = False
 
     def cog_unload(self):
         self.twitter_scheduled_job.cancel()
@@ -37,16 +38,34 @@ class TwitterCheckScheduler(commands.Cog):
         batch = self._next_batch(influencers)
 
         try:
-            await self.twitter.check_rss_notifications(batch)
+            consumed = await self.twitter.check_rss_notifications(batch)
         except Exception as e:
             await self.bot.messager.log(f"No pude escanear Twitter: {e}", level="ERROR", exc=e)
+            return
+
+        # Avanzo solo por lo que realmente leí: lo que quedó sin leer va de nuevo la vuelta que viene
+        self._cursor = (self._cursor + consumed) % len(influencers)
+        await self._report_feed_state()
 
     def _next_batch(self, influencers: list) -> list:
-        """Va rotando por la lista para que todas las cuentas se lean cada tantas vueltas."""
+        """La ventana que toca esta vuelta; el cursor avanza después, y solo por lo que se leyó."""
         self._cursor %= len(influencers)
         batch = (influencers + influencers)[self._cursor:self._cursor + _BATCH_SIZE]
-        self._cursor += _BATCH_SIZE
         return batch[:len(influencers)]
+
+    async def _report_feed_state(self):
+        """Aviso solo cuando el /rss de Nitter cambia de estado, no una vez por hora."""
+        if self.twitter.feeds_disabled == self._feeds_disabled:
+            return
+
+        self._feeds_disabled = self.twitter.feeds_disabled
+        if self._feeds_disabled:
+            await self.bot.messager.log(
+                "Nitter tiene el /rss apagado, dejo las cuentas para la próxima vuelta.",
+                level="WARNING",
+            )
+        else:
+            await self.bot.messager.log("Nitter volvió a servir el /rss, sigo con las cuentas donde quedé.")
 
 
 async def setup(bot):

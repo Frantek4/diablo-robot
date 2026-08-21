@@ -86,6 +86,14 @@ class NitterHTMLParser(HTMLParser):
         return in_quote[0] if in_quote else None
 
 
+def nitter_error_reason(body: str) -> str | None:
+    """Saca el motivo que Nitter escribe en su pantalla de error, para no loguear un HTTP pelado."""
+    match = re.search(r'error-panel"?>\s*<span>(.*?)</span>', body, re.DOTALL)
+    if not match:
+        return None
+    return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', match.group(1))).strip() or None
+
+
 def nitter_to_x_url(nitter_url: str) -> str | None:
     match = re.search(r'/(\w+)/status/(\d+)', nitter_url)
     if not match:
@@ -133,33 +141,51 @@ class RateLimited(Exception):
     pass
 
 
+class FeedsDisabled(Exception):
+    """Nitter apagó el /rss entero: no es cosa de esta cuenta ni de nuestro ritmo."""
+    pass
+
+
 class Twitter:
     def __init__(self, bot):
         self.bot = bot
         self.rss_bridge_url = settings.TWITTER_RSS_BRIDGE_URL
+        self.feeds_disabled = False
 
-    async def check_rss_notifications(self, influencers: List[InfluencerModel] | None = None):
+    async def check_rss_notifications(self, influencers: List[InfluencerModel] | None = None) -> int:
+        """Devuelve cuántas cuentas quedaron consumidas.
+
+        Cuando Nitter corta de raíz (429, o el /rss apagado) las que no llegué a leer no
+        cuentan, así el scheduler las reintenta en la vuelta siguiente en vez de saltearlas
+        hasta que el cursor dé toda la vuelta.
+        """
         if influencers is None:
             influencers = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
         if not influencers:
-            return
+            return 0
 
         one_week_ago = datetime.now(settings.TIMEZONE) - timedelta(days=7)
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         failures: list[str] = []
+        consumed = 0
+        disabled = False
 
         async with aiohttp.ClientSession() as session:
             for index, influencer in enumerate(influencers):
                 name = influencer["name"]
                 try:
                     reason = await self._process_influencer(session, influencer, one_week_ago, headers)
+                except FeedsDisabled:
+                    # Está apagado para todas por igual: seguir con las que faltan es al pedo
+                    disabled = True
+                    break
                 except RateLimited:
                     unread = len(influencers) - index
                     await self.bot.messager.log(
                         f"Nitter respondió HTTP 429 obteniendo {unread} feed(s).",
                         level="WARNING",
                     )
-                    return
+                    break
                 except asyncio.TimeoutError:
                     reason = "timeout"
                 except aiohttp.ClientError as e:
@@ -167,17 +193,21 @@ class Twitter:
                 except Exception as e:
                     reason = f"{type(e).__name__}: {e}"
 
+                consumed = index + 1
                 if reason:
                     failures.append(f"@{name} ({reason})")
 
                 if index < len(influencers) - 1:
                     await asyncio.sleep(_FEED_DELAY)
 
+        self.feeds_disabled = disabled
+
         if failures:
             await self.bot.messager.log(
                 f"No pude leer {len(failures)} feed(s) de Twitter: {', '.join(failures)}.",
                 level="WARNING",
             )
+        return consumed
 
     async def _process_influencer(self, session, influencer, one_week_ago, headers, retried: bool = False) -> str | None:
         """Devuelve None si leyó el feed bien, o el motivo de la falla."""
@@ -193,7 +223,11 @@ class Twitter:
                 await asyncio.sleep(backoff)
                 return await self._process_influencer(session, influencer, one_week_ago, headers, retried=True)
             if response.status != 200:
-                return f"HTTP {response.status}"
+                body = (await response.read()).decode("utf-8", errors="replace")
+                reason = nitter_error_reason(body)
+                if reason and "RSS feed is disabled" in reason:
+                    raise FeedsDisabled()
+                return f"HTTP {response.status}: {reason}" if reason else f"HTTP {response.status}"
 
             content = (await response.read()).decode("utf-8", errors="replace")
             feed = feedparser.parse(content)
