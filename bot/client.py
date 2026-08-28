@@ -69,7 +69,8 @@ class DiabloRobot(commands.Bot):
         self.get_cog('FixtureCheckScheduler').start_scheduled_job()
         self.get_cog('CommentatorScheduler').start_scheduled_job()
         self.get_cog('NewsCheckScheduler').start_scheduled_job()
-        self.get_cog('TwitterCheckScheduler').start_scheduled_job()
+        # Nitter.net está caído: dejo el job de Twitter parado hasta que vuelva
+        # self.get_cog('TwitterCheckScheduler').start_scheduled_job()
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         self.get_cog('InstagramCheckScheduler').start_scheduled_job()
         self.get_cog('MinecraftCheckScheduler').start_scheduled_job()
