@@ -12,7 +12,7 @@ class NuevoJuegoCommand(commands.Cog):
 
 
 
-    @commands.command(name="nuevo_juego", extras={"admin": True})
+    @commands.command(name="nuevo_juego")
     @commands.has_permissions(manage_roles=True, manage_channels=True)
     @commands.guild_only()
     async def nuevo_juego(self, ctx, *, game_name: str):

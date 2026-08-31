@@ -191,7 +191,7 @@ class TransmitirCommand(commands.Cog):
 
         await self._start_screenshare()
 
-    @commands.command(name="transmitir", extras={"admin": True})
+    @commands.command(name="transmitir")
     @commands.has_permissions(manage_roles=True)
     @commands.guild_only()
     async def transmitir(self, ctx, *, arg: str = None):

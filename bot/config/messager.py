@@ -122,10 +122,10 @@ class Messager:
         return message
     
     async def log(self, msg: str, level: str = "INFO", exc: Exception = None):
-        log_method = {"ERROR": logger.error, "WARNING": logger.warning}.get(level, logger.info)
+        log_method = {"CRITICAL": logger.critical, "ERROR": logger.error, "WARNING": logger.warning}.get(level, logger.info)
         log_method(msg, exc_info=exc if exc else False)
 
-        prefix = {"ERROR": "`[ERROR]`", "WARNING": "`[ADVERTENCIA]`"}.get(level, "`[INFO]`")
+        prefix = {"CRITICAL": "`[CRÍTICO]`", "ERROR": "`[ERROR]`", "WARNING": "`[ADVERTENCIA]`"}.get(level, "`[INFO]`")
         discord_msg = f"{prefix} {msg}"
 
         if exc:

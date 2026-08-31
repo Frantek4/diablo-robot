@@ -1,6 +1,7 @@
 import logging
 import discord
 from discord.ext import commands
+from bot.config.command_access import is_allowed_in
 from bot.config.messager import Messager, init_messager
 from config.settings import settings
 from data_access.fixture_dao import FixtureDAO
@@ -8,6 +9,7 @@ from data_access.game_dao import GameDAO
 from data_access.hardware_monitor_dao import HardwareMonitorDAO
 from data_access.influencer_dao import InfluencerDAO
 from data_access.news_dao import NewsDAO
+from data_access.nitter_mirror_dao import NitterMirrorDAO
 from data_access.self_destruct_message_dao import SelfDestructMessageDAO
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ class DiabloRobot(commands.Bot):
         self.fixture_dao = FixtureDAO()
         self.self_destruct_message_dao = SelfDestructMessageDAO()
         self.hardware_monitor_dao = HardwareMonitorDAO()
+        self.nitter_mirror_dao = NitterMirrorDAO()
 
     async def setup_hook(self):
         await self.load_extension('bot.cogs.fixture_event_creator')
@@ -43,9 +46,11 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.ping')
         await self.load_extension('bot.commands.fijate')
         await self.load_extension('bot.commands.nuevo_juego')
+        await self.load_extension('bot.commands.calendario')
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
+        await self.load_extension('bot.commands.nitter')
         await self.load_extension('bot.commands.transmitir')
         await self.load_extension('bot.commands.limpiar')
         await self.load_extension('bot.commands.reiniciar')
@@ -55,6 +60,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.commentator_scheduler')
         await self.load_extension('bot.scheduled.news_check')
         await self.load_extension('bot.scheduled.twitter_check')
+        await self.load_extension('bot.scheduled.nitter_mirror_check')
         await self.load_extension('bot.scheduled.youtube_check')
         await self.load_extension('bot.scheduled.instagram_check')
         await self.load_extension('bot.scheduled.minecraft_check')
@@ -69,8 +75,8 @@ class DiabloRobot(commands.Bot):
         self.get_cog('FixtureCheckScheduler').start_scheduled_job()
         self.get_cog('CommentatorScheduler').start_scheduled_job()
         self.get_cog('NewsCheckScheduler').start_scheduled_job()
-        # Nitter.net está caído: dejo el job de Twitter parado hasta que vuelva
-        # self.get_cog('TwitterCheckScheduler').start_scheduled_job()
+        self.get_cog('TwitterCheckScheduler').start_scheduled_job()
+        self.get_cog('NitterMirrorCheckScheduler').start_scheduled_job()
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         self.get_cog('InstagramCheckScheduler').start_scheduled_job()
         self.get_cog('MinecraftCheckScheduler').start_scheduled_job()
@@ -84,14 +90,16 @@ class DiabloRobot(commands.Bot):
     async def on_message(self, message):
         if message.author == self.user:
             return
-        if message.channel.id == settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
-            await self.process_commands(message)
+
+        ctx = await self.get_context(message)
+        if ctx.command is None:
+            # Solo en #robot-devil contesto los comandos que no existen
+            if message.channel.id == settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
+                await self.invoke(ctx)
             return
-        if message.content.startswith((f"{settings.PREFIX}help", f"{settings.PREFIX}ayuda")):
-            await self.process_commands(message)
-            return
-        if message.channel.id == settings.GENERAL_TEXT_CHANNEL_ID and message.content.startswith(f"{settings.PREFIX}vpn"):
-            await self.process_commands(message)
+
+        if is_allowed_in(ctx.command, message.channel.id):
+            await self.invoke(ctx)
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):

@@ -214,3 +214,7 @@ __marimo__/
 # AI
 CLAUDE.md
 .aiexclude
+
+# Credenciales de la service account de Google Calendar
+google-calendar.json
+*.iam.gserviceaccount.json

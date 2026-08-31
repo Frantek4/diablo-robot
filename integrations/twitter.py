@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
 from typing import List
@@ -9,13 +10,13 @@ import aiohttp
 import feedparser
 
 from config.settings import settings
+from integrations import nitter_mirrors
+from integrations.nitter_mirrors import nitter_error_reason
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
 
 # Espera fija entre feed y feed: a Nitter le molesta el ritmo, no el patrón
 _FEED_DELAY = 60
-# Cuánto banco un Retry-After antes de dar la vuelta por perdida
-_MAX_BACKOFF = 300
 
 
 def nitter_pic_to_twimg(url: str) -> str:
@@ -86,14 +87,6 @@ class NitterHTMLParser(HTMLParser):
         return in_quote[0] if in_quote else None
 
 
-def nitter_error_reason(body: str) -> str | None:
-    """Saca el motivo que Nitter escribe en su pantalla de error, para no loguear un HTTP pelado."""
-    match = re.search(r'error-panel"?>\s*<span>(.*?)</span>', body, re.DOTALL)
-    if not match:
-        return None
-    return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', match.group(1))).strip() or None
-
-
 def nitter_to_x_url(nitter_url: str) -> str | None:
     match = re.search(r'/(\w+)/status/(\d+)', nitter_url)
     if not match:
@@ -137,27 +130,27 @@ def parse_entry(entry: dict, influencer: dict) -> dict | None:
     }
 
 
-class RateLimited(Exception):
-    pass
+class MirrorDown(Exception):
+    """El mirror no sirve ahora mismo: es problema de la instancia, no de la cuenta que estaba leyendo."""
 
-
-class FeedsDisabled(Exception):
-    """Nitter apagó el /rss entero: no es cosa de esta cuenta ni de nuestro ritmo."""
-    pass
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
 
 
 class Twitter:
     def __init__(self, bot):
         self.bot = bot
-        self.rss_bridge_url = settings.TWITTER_RSS_BRIDGE_URL
-        self.feeds_disabled = False
+        self.mirror_dao = bot.nitter_mirror_dao
+        # Queda en True cuando probé todos los mirrors del repositorio y no anduvo ninguno
+        self.out_of_mirrors = False
 
     async def check_rss_notifications(self, influencers: List[InfluencerModel] | None = None) -> int:
         """Devuelve cuántas cuentas quedaron consumidas.
 
-        Cuando Nitter corta de raíz (429, o el /rss apagado) las que no llegué a leer no
-        cuentan, así el scheduler las reintenta en la vuelta siguiente en vez de saltearlas
-        hasta que el cursor dé toda la vuelta.
+        Cuando un mirror se cae en el medio (429, 403, el /rss apagado) lo bajo del repositorio y sigo la
+        misma cuenta con el siguiente. Las que no llegué a leer no cuentan, así el scheduler las reintenta
+        en la vuelta siguiente en vez de saltearlas hasta que el cursor dé toda la vuelta.
         """
         if influencers is None:
             influencers = self.bot.influencer_dao.get_by_platform(SocialMedia.TWITTER)
@@ -165,42 +158,51 @@ class Twitter:
             return 0
 
         one_week_ago = datetime.now(settings.TIMEZONE) - timedelta(days=7)
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         failures: list[str] = []
+        retired: list[str] = []
         consumed = 0
-        disabled = False
+        self.out_of_mirrors = False
+
+        pending_mirrors = await self._mirror_queue()
+        mirror = pending_mirrors.pop(0) if pending_mirrors else None
 
         async with aiohttp.ClientSession() as session:
-            for index, influencer in enumerate(influencers):
+            index = 0
+            while index < len(influencers):
+                if mirror is None:
+                    self.out_of_mirrors = True
+                    break
+
+                influencer = influencers[index]
                 name = influencer["name"]
+
                 try:
-                    reason = await self._process_influencer(session, influencer, one_week_ago, headers)
-                except FeedsDisabled:
-                    # Está apagado para todas por igual: seguir con las que faltan es al pedo
-                    disabled = True
-                    break
-                except RateLimited:
-                    unread = len(influencers) - index
-                    await self.bot.messager.log(
-                        f"Nitter respondió HTTP 429 obteniendo {unread} feed(s).",
-                        level="WARNING",
+                    reason, latency_ms = await self._process_influencer(
+                        session, mirror.url, influencer, one_week_ago
                     )
-                    break
-                except asyncio.TimeoutError:
-                    reason = "timeout"
-                except aiohttp.ClientError as e:
-                    reason = type(e).__name__
-                except Exception as e:
-                    reason = f"{type(e).__name__}: {e}"
+                except MirrorDown as e:
+                    self.mirror_dao.save_result(mirror.url, is_online=False, reason=e.reason)
+                    retired.append(f"{mirror.host} ({e.reason})")
+                    mirror = pending_mirrors.pop(0) if pending_mirrors else None
+                    continue
+
+                self.mirror_dao.save_result(mirror.url, is_online=True, latency_ms=latency_ms)
 
                 consumed = index + 1
                 if reason:
                     failures.append(f"@{name} ({reason})")
 
-                if index < len(influencers) - 1:
+                index += 1
+                if index < len(influencers):
                     await asyncio.sleep(_FEED_DELAY)
 
-        self.feeds_disabled = disabled
+        # Si me quedé sin ninguno, el aviso lo da report_pool_state con un [CRÍTICO]: no lo repito acá
+        if retired and not self.out_of_mirrors:
+            await self.bot.messager.log(
+                f"Se me cayeron {len(retired)} mirror(s) de Nitter en el medio del scaneo: {', '.join(retired)}. "
+                f"Seguí con {mirror.host}.",
+                level="WARNING",
+            )
 
         if failures:
             await self.bot.messager.log(
@@ -209,31 +211,54 @@ class Twitter:
             )
         return consumed
 
-    async def _process_influencer(self, session, influencer, one_week_ago, headers, retried: bool = False) -> str | None:
-        """Devuelve None si leyó el feed bien, o el motivo de la falla."""
+    async def _mirror_queue(self) -> list:
+        """Los mirrors que puedo usar ahora, mejor primero: los que sé que andan y los que nunca probé.
+
+        A los caídos no los toco acá: los reintenta el chequeo de mirrors con su backoff, así no salgo a
+        golpear ocho instancias muertas cada vez que scaneo. Si el repositorio está vacío lo siembro.
+        """
+        mirrors = self.mirror_dao.get_ranked()
+        if not mirrors:
+            await nitter_mirrors.seed_catalog(self.bot)
+            mirrors = self.mirror_dao.get_ranked()
+        return [mirror for mirror in mirrors if mirror.is_online or mirror.is_online is None]
+
+    async def _process_influencer(self, session, mirror_url, influencer, one_week_ago) -> tuple[str | None, float | None]:
+        """Devuelve (motivo de la falla de la cuenta o None, latencia del feed). Si el mirror falla, tira MirrorDown."""
         name = influencer["name"]
-        feed_url = f"{self.rss_bridge_url}/{name}/rss"
+        feed_url = f"{mirror_url}/{name}/rss"
+        headers = {"User-Agent": settings.USER_AGENT}
+        started = time.perf_counter()
 
-        async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
-            if response.status == 429:
-                retry_after = response.headers.get("Retry-After")
-                backoff = int(retry_after) if retry_after and retry_after.isdigit() else 60
-                if retried or backoff > _MAX_BACKOFF:
-                    raise RateLimited()
-                await asyncio.sleep(backoff)
-                return await self._process_influencer(session, influencer, one_week_ago, headers, retried=True)
-            if response.status != 200:
-                body = (await response.read()).decode("utf-8", errors="replace")
-                reason = nitter_error_reason(body)
-                if reason and "RSS feed is disabled" in reason:
-                    raise FeedsDisabled()
-                return f"HTTP {response.status}: {reason}" if reason else f"HTTP {response.status}"
+        try:
+            async with session.get(feed_url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                content = (await response.read()).decode("utf-8", errors="replace")
+                latency_ms = (time.perf_counter() - started) * 1000
+                status = response.status
+        except asyncio.TimeoutError:
+            raise MirrorDown("timeout")
+        except aiohttp.ClientError as e:
+            raise MirrorDown(type(e).__name__)
 
-            content = (await response.read()).decode("utf-8", errors="replace")
-            feed = feedparser.parse(content)
+        if status == 404:
+            # Esto es de la cuenta, no del mirror: no lo bajo por una cuenta que no existe más
+            return "cuenta no encontrada", latency_ms
+
+        if status != 200:
+            reason = nitter_error_reason(content)
+            raise MirrorDown(f"HTTP {status}: {reason}" if reason else f"HTTP {status}")
+
+        feed = feedparser.parse(content)
 
         if feed.bozo and not feed.entries:
-            return "RSS roto"
+            raise MirrorDown("RSS roto")
+
+        if feed.entries and not nitter_mirrors.entries_have_tweets(feed.entries, name):
+            # Contesta 200 con un RSS válido que no trae tweets (whitelist, cartel de error): inservible igual
+            raise MirrorDown(nitter_error_reason(content) or "contesta pero no devuelve tweets")
+
+        if not feed.entries:
+            return "feed vacío", latency_ms
 
         for entry in reversed(feed.entries):
             parsed = parse_entry(entry, influencer)
@@ -258,4 +283,4 @@ class Twitter:
             self.bot.news_dao.insert(parsed["url"])
             await asyncio.sleep(1)
 
-        return None
+        return None, latency_ms

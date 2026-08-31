@@ -26,7 +26,9 @@ class Settings(BaseSettings):
     FOOTBALL_FORUM_ID: int
     GAMES_CATEGORY_ID: int
     USER_AGENT: str
-    TWITTER_RSS_BRIDGE_URL: str = "http://nitter.net"
+    TWITTER_RSS_BRIDGE_URL: str = "https://nitter.net"
+    NITTER_INSTANCES_URL: str = "https://raw.githubusercontent.com/wiki/zedeus/nitter/Instances.md"
+    NITTER_PROBE_ACCOUNT: str = "Independiente"
     DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
     DATABASE_USERNAME: str
     DATABASE_PASSWORD: str
@@ -49,6 +51,8 @@ class Settings(BaseSettings):
     HARDWARE_MONITOR_PORT: int = 8788
     HARDWARE_MONITOR_TOKEN: str = ""
     HARDWARE_MONITOR_STATUS_MESSAGE_ID: int | None = None
+    GOOGLE_CALENDAR_ID: str = ""
+    GOOGLE_SERVICE_ACCOUNT_FILE: str = ""
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod

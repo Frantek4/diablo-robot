@@ -7,7 +7,7 @@ class FijateCommand(commands.Cog):
         self.bot = bot
         self.fixture_event_creator = FixtureEventCreator(bot)
     
-    @commands.command(name='fijate', extras={"admin": True})
+    @commands.command(name='fijate')
     @commands.has_permissions(manage_guild=True)
     async def fijate(self, ctx):
         """Busca los próximos partidos a mano, sin esperar el chequeo automático."""

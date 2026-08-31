@@ -13,3 +13,4 @@ ddgs
 tplinkrouterc6u
 mcstatus>=11.0.0,<12.0
 Pillow>=10.0.0,<13.0
+google-auth>=2.30.0,<3.0

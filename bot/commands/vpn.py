@@ -15,7 +15,10 @@ class VpnCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="vpn")
+    @commands.command(name="vpn", extras={"channels": (
+        settings.GENERAL_TEXT_CHANNEL_ID,
+        settings.ROBOT_DEVIL_TEXT_CHANNEL_ID,
+    )})
     async def vpn(self, ctx):
         """Te genera una config de WireGuard y te la manda por DM."""
         username = ctx.author.name

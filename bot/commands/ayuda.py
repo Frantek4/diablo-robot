@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 
-from config.settings import settings
+from bot.config.command_access import ANY_CHANNEL, is_allowed_in
 
 
 class AyudaHelpCommand(commands.HelpCommand):
@@ -13,24 +13,33 @@ class AyudaHelpCommand(commands.HelpCommand):
             "name": "help",
             "aliases": ["ayuda"],
             "help": "Muestra esta ayuda.",
+            "extras": {"channels": ANY_CHANNEL},
         })
 
     def get_command_signature(self, command):
         return f"{self.context.clean_prefix}{command.qualified_name} {command.signature}".strip()
 
     async def _visible_commands(self, commands_iterable):
-        filtered = await self.filter_commands(commands_iterable, sort=True)
-        if self.context.channel.id == settings.ROBOT_DEVIL_TEXT_CHANNEL_ID:
-            return filtered
-        return [command for command in filtered if not command.extras.get("admin")]
+        """Los comandos que se pueden usar en este canal y que además el que pregunta
+        tiene permisos para correr (filter_commands corre los checks de cada uno)."""
+        channel_id = self.context.channel.id
+        in_this_channel = [command for command in commands_iterable if is_allowed_in(command, channel_id)]
+        return await self.filter_commands(in_this_channel, sort=True)
 
     async def send_bot_help(self, mapping):
         all_commands = [command for commands_list in mapping.values() for command in commands_list]
         visible = await self._visible_commands(all_commands)
 
+        if not visible:
+            await self.get_destination().send("Acá no tenés ningún comando a mano.")
+            return
+
         embed = discord.Embed(
             title="Comandos de Diablo Robot",
-            description=f"Escribí `{self.context.clean_prefix}help <comando>` para ver el detalle de alguno.",
+            description=(
+                f"Estos son los que podés usar acá. "
+                f"Escribí `{self.context.clean_prefix}help <comando>` para ver el detalle de alguno."
+            ),
             color=self.COLOR,
         )
 
@@ -57,7 +66,7 @@ class AyudaHelpCommand(commands.HelpCommand):
         await self.get_destination().send(embed=embed)
 
     async def command_not_found(self, string):
-        return f"No conozco ningún comando '{string}'. Fijate con `{self.context.clean_prefix}help`."
+        return f"No conozco ningún comando '{string}' que puedas usar acá. Fijate con `{self.context.clean_prefix}help`."
 
     async def subcommand_not_found(self, command, string):
         return f"'{command.qualified_name}' no tiene ningún subcomando '{string}'."

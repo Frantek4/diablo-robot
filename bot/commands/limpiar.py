@@ -12,8 +12,8 @@ class LimpiarCommand(commands.Cog):
         Con un número, borra esa cantidad de mensajes (máximo 100)."""
 
         def is_error_or_warning(message):
-            return message.author == self.bot.user and (
-                message.content.startswith("`[ERROR]`") or message.content.startswith("`[ADVERTENCIA]`")
+            return message.author == self.bot.user and message.content.startswith(
+                ("`[ERROR]`", "`[ADVERTENCIA]`", "`[CRÍTICO]`")
             )
 
         try:
