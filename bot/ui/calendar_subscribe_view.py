@@ -10,6 +10,8 @@ def _other_apps_help() -> str:
     return (
         "Copiá esta dirección:\n"
         f"```{ical}```\n"
+        "**Ya me suscribí y no me aparece en el celular** — tildá el calendario en "
+        "<https://calendar.google.com/calendar/syncselect> con la misma cuenta que usás en el teléfono.\n\n"
         "**iPhone / iPad** — Ajustes → Apps → Calendario → Cuentas → Añadir cuenta → "
         "Otra → Añadir suscripción a calendario.\n\n"
         "**Outlook** — Calendario → Agregar calendario → Suscribirse desde la Web.\n\n"
@@ -18,11 +20,14 @@ def _other_apps_help() -> str:
 
 
 class OtherAppsButton(Button):
-    """Le paso la dirección del .ics por privado al que no usa Google."""
+    """Le paso por privado la dirección del .ics y cómo destrabar el sync del celular.
+
+    El custom_id no se toca aunque cambie la etiqueta: es lo que ata el botón del mensaje
+    ya fijado a esta vista, así el embed posteado hace meses sigue funcionando."""
 
     def __init__(self):
         super().__init__(
-            label="iPhone, Outlook y otros",
+            label="No me aparece / otras apps",
             emoji="📱",
             style=ButtonStyle.secondary,
             custom_id="calendario:otros",

@@ -1,8 +1,8 @@
 """Espejo de los partidos en un Google Calendar.
 
-El calendario lo creás vos en tu cuenta de Google y le das permiso de escritura
-a una service account; el bot escribe con esas credenciales (ver
-docs/GOOGLE-CALENDAR.md). El id de cada evento sale del match_id de Promiedos,
+El calendario lo creás vos en tu cuenta de Google y le das permiso de escritura a una
+service account; el bot escribe con esas credenciales, que salen de
+GOOGLE_SERVICE_ACCOUNT_FILE. El id de cada evento sale del match_id de Promiedos,
 así que sincronizar es idempotente: el mismo partido siempre pisa el mismo
 evento del calendario, sin necesidad de guardar nada en Mongo.
 """
@@ -21,6 +21,9 @@ from config.settings import settings
 API_URL = "https://www.googleapis.com/calendar/v3/calendars"
 SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 TIMEOUT = aiohttp.ClientTimeout(total=10)
+# "Tomate", el más rojo de la paleta de Google. Va en el evento y no en el calendario,
+# así lo ve igual todo el mundo: el color del calendario lo elige cada suscriptor.
+EVENT_COLOR_TOMATO = "11"
 
 _credentials = None
 
@@ -86,6 +89,7 @@ async def upsert_event(
         "summary": summary,
         "description": description,
         "location": location or "",
+        "colorId": EVENT_COLOR_TOMATO,
         "start": {"dateTime": start.isoformat(), "timeZone": str(settings.TIMEZONE)},
         "end": {"dateTime": end.isoformat(), "timeZone": str(settings.TIMEZONE)},
         "reminders": {"useDefault": True},
