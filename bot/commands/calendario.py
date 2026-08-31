@@ -21,29 +21,13 @@ class CalendarioCommand(commands.Cog):
             return
 
         embed = discord.Embed(
-            title="📅 El calendario del Rojo",
+            title="📅 Calendario de Independiente",
             description=(
-                "Todos los partidos que agendo en el server te los agendo también en el celular: "
-                "Profesional, Reserva, Femenino y las Selecciones.\n\n"
-                "Un botón y listo, no hay que hacer nada más nunca."
+                "Todos los partidos del Rojo en el calendario de tu celular: "
+                "Profesional, Reserva, Femenino y las Selecciones Nacionales.\n\n"
+                "Se actualiza solo."
             ),
             color=discord.Color.red(),
-        )
-        embed.add_field(
-            name="Qué te va a aparecer",
-            value=(
-                "Cada partido con la competencia, la cancha, el árbitro y por dónde lo pasan. "
-                "Arranca a la hora del partido, no antes."
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="Se mantiene solo",
-            value=(
-                "Si cambian el día, la hora o la cancha, se te corrige en el calendario sin que "
-                "hagas nada. Tampoco te llena de nada: solo los partidos."
-            ),
-            inline=False,
         )
         embed.set_footer(text="Diablo Robot")
 

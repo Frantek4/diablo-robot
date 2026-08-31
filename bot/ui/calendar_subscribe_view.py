@@ -8,19 +8,12 @@ from integrations import google_calendar
 def _other_apps_help() -> str:
     ical = google_calendar.ical_url()
     return (
-        "Para que se te actualice solo, hay que **suscribirse** al calendario, no importarlo. "
         "Copiá esta dirección:\n"
         f"```{ical}```\n"
-        "**iPhone / iPad**\n"
-        "Ajustes → Apps → Calendario → Cuentas → Añadir cuenta → Otra → "
-        "Añadir suscripción a calendario → pegar la dirección.\n\n"
-        "**Outlook**\n"
-        "Calendario → Agregar calendario → Suscribirse desde la Web → pegar la dirección.\n\n"
-        "**Android**\n"
-        "Usá el botón de arriba desde el navegador: se agrega a tu cuenta de Google y después "
-        "aparece solo en la app de Calendar del celular.\n\n"
-        "*Ojo que fuera de Google los calendarios suscritos se refrescan cada varias horas, "
-        "así que un cambio de horario puede tardar en aparecerte.*"
+        "**iPhone / iPad** — Ajustes → Apps → Calendario → Cuentas → Añadir cuenta → "
+        "Otra → Añadir suscripción a calendario.\n\n"
+        "**Outlook** — Calendario → Agregar calendario → Suscribirse desde la Web.\n\n"
+        "**Android** — Usá el botón de Google Calendar desde el navegador."
     )
 
 
