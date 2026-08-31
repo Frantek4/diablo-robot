@@ -23,9 +23,7 @@ class CalendarioCommand(commands.Cog):
         embed = discord.Embed(
             title="📅 Calendario de Independiente",
             description=(
-                "Todos los partidos del Rojo en el calendario de tu celular: "
-                "Profesional, Reserva, Femenino y las Selecciones Nacionales.\n\n"
-                "Se actualiza solo."
+                "Seguí todos los eventos en el calendario de tu celular de forma automática."
             ),
             color=discord.Color.red(),
         )
