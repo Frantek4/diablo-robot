@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 from discord.ext import commands, tasks
@@ -10,6 +11,10 @@ from models.social_media import SocialMedia
 _ACTIVE_HOURS = set(range(0, 2)) | set(range(8, 24))
 # Cuántas cuentas leo por vuelta: el resto queda para las vueltas siguientes
 _BATCH_SIZE = 3
+# tasks.loop corre la primera vuelta apenas arranca, así que sin esto cada reinicio del bot
+# dispara un scaneo fuera de cadencia. Con la gracia, si reinicio varias veces seguidas el
+# proceso muere antes de disparar y las ráfagas no se apilan
+_STARTUP_GRACE = 300
 
 
 class TwitterCheckScheduler(commands.Cog):
@@ -44,6 +49,10 @@ class TwitterCheckScheduler(commands.Cog):
 
         # Avanzo solo por lo que realmente leí: lo que quedó sin leer va de nuevo la vuelta que viene
         self._cursor = (self._cursor + consumed) % len(influencers)
+
+    @twitter_scheduled_job.before_loop
+    async def before_twitter_scheduled_job(self):
+        await asyncio.sleep(_STARTUP_GRACE)
 
     def _next_batch(self, influencers: list) -> list:
         """La ventana que toca esta vuelta; el cursor avanza después, y solo por lo que se leyó."""

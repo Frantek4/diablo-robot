@@ -65,6 +65,23 @@ NITTER_HOST_URL=http://127.0.0.1:19050
 Con eso entra al repositorio de mirrors como `source=self` y **rankea antes que cualquier
 pública**, andando o no. `!nitter` la muestra marcada como "la mía".
 
+## Cuánto margen de rate limit queda
+
+`enableDebug = true` expone el estado de las sesiones, con el límite que X reporta para cada una:
+
+```bash
+curl -s http://127.0.0.1:19050/.sessions
+```
+
+Sirve para decidir con datos si hace falta aflojar la cadencia del bot, en vez de suponer. El
+bot lee ~54 feeds por día (18 horas activas × 3 cuentas por vuelta), que es poco: si algún día
+querés seguir más cuentas, mirá esto antes de recortar el `_BATCH_SIZE` de
+`bot/scheduled/twitter_check.py`.
+
+Si un día te aparecen sesiones limitadas seguido, la solución que mejor escala no es pedir
+menos sino **sumar cuentas**: una línea más en `sessions.jsonl` y Nitter rota solo, llevando el
+rate limit de cada una por separado.
+
 ## Notas
 
 - Escucha solo en `127.0.0.1`: no queda expuesta a la red ni a internet. Es para el bot, no
@@ -72,6 +89,7 @@ pública**, andando o no. `!nitter` la muestra marcada como "la mía".
   abriendo el puerto.
 - Puerto `19050` (año de fundación del Rojo), fuera del rango efímero de Linux.
 - Redis está capado a 128 MB con `allkeys-lru` y sin persistencia: es cache, no datos.
+- El RSS se cachea 60 min (`rssMinutes`), alineado con el loop de 1 h del bot.
 - El contenedor de Nitter **no** tiene healthcheck: el único chequeo real sería pedir un RSS,
   y eso gasta rate limit de la sesión cada vez. Para saber si anda, el `curl` de más arriba.
 - Consumo total esperado: ~150 MB de RAM.
