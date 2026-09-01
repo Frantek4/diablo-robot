@@ -17,24 +17,12 @@ import json
 import sys
 from argparse import ArgumentParser
 from glob import glob
-from os.path import expanduser
+from os.path import expanduser, getsize
 from platform import system
 from sqlite3 import OperationalError, connect
 
 # Las que Nitter realmente usa para firmar los requests (ver src/apiutils.nim)
 WANTED = ("auth_token", "ct0", "twid")
-
-
-def get_cookiefile() -> str:
-    default = {
-        "Windows": "~/AppData/Roaming/Mozilla/Firefox/Profiles/*/cookies.sqlite",
-        "Darwin": "~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite",
-    }.get(system(), "~/.mozilla/firefox/*/cookies.sqlite")
-    matches = glob(expanduser(default))
-    if not matches:
-        raise SystemExit("No encontré cookies.sqlite de Firefox. Pasalo con -c COOKIEFILE.")
-    # El perfil con más cookies suele ser el que se usa de verdad
-    return max(matches, key=lambda f: len(f))
 
 
 def read_cookies(cookiefile: str) -> dict:
@@ -49,6 +37,40 @@ def read_cookies(cookiefile: str) -> dict:
             "SELECT name, value FROM moz_cookies WHERE host LIKE '%x.com' OR host LIKE '%twitter.com'"
         )
     return {name: value for name, value in rows if name in WANTED}
+
+
+def candidate_cookiefiles() -> list:
+    """Todas las rutas donde puede estar el perfil, incluidas las de Snap y Flatpak en Linux."""
+    patterns = {
+        "Windows": ["~/AppData/Roaming/Mozilla/Firefox/Profiles/*/cookies.sqlite"],
+        "Darwin": ["~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite"],
+    }.get(system(), [
+        "~/.mozilla/firefox/*/cookies.sqlite",
+        # Firefox de Snap y de Flatpak no usan ~/.mozilla
+        "~/snap/firefox/common/.mozilla/firefox/*/cookies.sqlite",
+        "~/.var/app/org.mozilla.firefox/.mozilla/firefox/*/cookies.sqlite",
+    ])
+    found = []
+    for pattern in patterns:
+        found.extend(glob(expanduser(pattern)))
+    return found
+
+
+def get_cookiefile() -> str:
+    """Elijo el perfil que realmente tenga la sesión de X, no el primero que aparezca."""
+    candidates = candidate_cookiefiles()
+    if not candidates:
+        raise SystemExit("No encontré cookies.sqlite de Firefox. Pasalo con -c COOKIEFILE.")
+
+    for path in sorted(candidates, key=getsize, reverse=True):
+        try:
+            if len(read_cookies(path)) == len(WANTED):
+                return path
+        except OperationalError:
+            continue
+
+    # Ninguno las tiene todas: devuelvo el más grande y que el chequeo de main() diga qué falta
+    return max(candidates, key=getsize)
 
 
 def extract_user_id(twid: str) -> str | None:
