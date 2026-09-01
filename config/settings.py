@@ -26,9 +26,8 @@ class Settings(BaseSettings):
     FOOTBALL_FORUM_ID: int
     GAMES_CATEGORY_ID: int
     USER_AGENT: str
-    TWITTER_RSS_BRIDGE_URL: str = "https://nitter.net"
-    NITTER_INSTANCES_URL: str = "https://raw.githubusercontent.com/wiki/zedeus/nitter/Instances.md"
-    NITTER_PROBE_ACCOUNT: str = "Independiente"
+    # Instancia propia de Nitter (Docker en el Pi). Sin esto el bot no lee Twitter.
+    NITTER_HOST_URL: str = ""
     DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
     DATABASE_USERNAME: str
     DATABASE_PASSWORD: str

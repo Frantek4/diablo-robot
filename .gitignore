@@ -218,3 +218,6 @@ CLAUDE.md
 # Credenciales de la service account de Google Calendar
 google-calendar.json
 *.iam.gserviceaccount.json
+
+# Cookies de la cuenta de X que usa la instancia propia de Nitter
+nitter/sessions.jsonl

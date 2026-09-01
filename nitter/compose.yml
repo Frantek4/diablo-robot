@@ -1,0 +1,39 @@
+# Instancia propia de Nitter para el bot. Corre en el Pi, no se expone a internet.
+services:
+  nitter:
+    image: zedeus/nitter:latest
+    container_name: nitter
+    ports:
+      # Solo loopback: que no quede escuchando en la red aunque el Pi tenga puertos abiertos
+      - "127.0.0.1:19050:19050"
+    volumes:
+      - ./nitter.conf:/src/nitter.conf:ro
+      - ./sessions.jsonl:/src/sessions.jsonl:ro
+    depends_on:
+      nitter-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19050/Independiente/rss"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  nitter-redis:
+    image: redis:7-alpine
+    container_name: nitter-redis
+    command: redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

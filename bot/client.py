@@ -9,7 +9,6 @@ from data_access.game_dao import GameDAO
 from data_access.hardware_monitor_dao import HardwareMonitorDAO
 from data_access.influencer_dao import InfluencerDAO
 from data_access.news_dao import NewsDAO
-from data_access.nitter_mirror_dao import NitterMirrorDAO
 from data_access.self_destruct_message_dao import SelfDestructMessageDAO
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,6 @@ class DiabloRobot(commands.Bot):
         self.fixture_dao = FixtureDAO()
         self.self_destruct_message_dao = SelfDestructMessageDAO()
         self.hardware_monitor_dao = HardwareMonitorDAO()
-        self.nitter_mirror_dao = NitterMirrorDAO()
 
     async def setup_hook(self):
         await self.load_extension('bot.cogs.fixture_event_creator')
@@ -50,7 +48,6 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
-        await self.load_extension('bot.commands.nitter')
         await self.load_extension('bot.commands.transmitir')
         await self.load_extension('bot.commands.limpiar')
         await self.load_extension('bot.commands.reiniciar')
@@ -60,7 +57,6 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.commentator_scheduler')
         await self.load_extension('bot.scheduled.news_check')
         await self.load_extension('bot.scheduled.twitter_check')
-        await self.load_extension('bot.scheduled.nitter_mirror_check')
         await self.load_extension('bot.scheduled.youtube_check')
         await self.load_extension('bot.scheduled.instagram_check')
         await self.load_extension('bot.scheduled.minecraft_check')
@@ -76,7 +72,6 @@ class DiabloRobot(commands.Bot):
         self.get_cog('CommentatorScheduler').start_scheduled_job()
         self.get_cog('NewsCheckScheduler').start_scheduled_job()
         self.get_cog('TwitterCheckScheduler').start_scheduled_job()
-        self.get_cog('NitterMirrorCheckScheduler').start_scheduled_job()
         self.get_cog('YouTubeCheckScheduler').start_scheduled_job()
         self.get_cog('InstagramCheckScheduler').start_scheduled_job()
         self.get_cog('MinecraftCheckScheduler').start_scheduled_job()

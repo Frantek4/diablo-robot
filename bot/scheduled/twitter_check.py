@@ -3,11 +3,10 @@ from datetime import datetime
 from discord.ext import commands, tasks
 
 from config.settings import settings
-from integrations import nitter_mirrors
 from integrations.twitter import Twitter
 from models.social_media import SocialMedia
 
-# No tiene sentido machacar a Nitter de madrugada: nadie tuitea y el rate limit se paga igual
+# No tiene sentido machacar de madrugada: nadie tuitea y el rate limit de X se paga igual
 _ACTIVE_HOURS = set(range(0, 2)) | set(range(8, 24))
 # Cuántas cuentas leo por vuelta: el resto queda para las vueltas siguientes
 _BATCH_SIZE = 3
@@ -45,8 +44,6 @@ class TwitterCheckScheduler(commands.Cog):
 
         # Avanzo solo por lo que realmente leí: lo que quedó sin leer va de nuevo la vuelta que viene
         self._cursor = (self._cursor + consumed) % len(influencers)
-        # El scaneo también actualiza el estado de los mirrors, así que reviso si me quedé sin ninguno
-        await nitter_mirrors.report_pool_state(self.bot)
 
     def _next_batch(self, influencers: list) -> list:
         """La ventana que toca esta vuelta; el cursor avanza después, y solo por lo que se leyó."""
