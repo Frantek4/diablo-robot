@@ -13,27 +13,24 @@ services:
       nitter-redis:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:19050/Independiente/rss"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
+    # Sin healthcheck a propósito: el único chequeo real sería pedir un RSS, y eso son llamadas
+    # de verdad a la API de X que gastan el rate limit de la sesión. Para saber si anda, el
+    # curl del README a mano; para saber si dejó de andar, el aviso del bot en #robot-devil
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
 
   nitter-redis:
     image: redis:7-alpine
     container_name: nitter-redis
-    command: redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    # En lista y no en string: así el --save "" llega como argumento vacío y no como dos comillas
+    command: ["redis-server", "--save", "", "--appendonly", "no",
+              "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 20s
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL

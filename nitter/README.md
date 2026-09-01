@@ -72,4 +72,6 @@ pública**, andando o no. `!nitter` la muestra marcada como "la mía".
   abriendo el puerto.
 - Puerto `19050` (año de fundación del Rojo), fuera del rango efímero de Linux.
 - Redis está capado a 128 MB con `allkeys-lru` y sin persistencia: es cache, no datos.
+- El contenedor de Nitter **no** tiene healthcheck: el único chequeo real sería pedir un RSS,
+  y eso gasta rate limit de la sesión cada vez. Para saber si anda, el `curl` de más arriba.
 - Consumo total esperado: ~150 MB de RAM.
