@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     USER_AGENT: str
     # Instancia propia de Nitter (Docker en el Pi). Sin esto el bot no lee Twitter.
     NITTER_HOST_URL: str = ""
+    # Nombre del contenedor, para leerle los logs con `docker logs` cuando un feed rebota: el error
+    # que devuelve Nitter es siempre el mismo cartel genérico y la causa real sólo está ahí
+    NITTER_CONTAINER: str = "nitter"
     DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
     DATABASE_USERNAME: str
     DATABASE_PASSWORD: str

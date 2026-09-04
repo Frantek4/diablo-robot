@@ -13,6 +13,15 @@ services:
       nitter-redis:
         condition: service_healthy
     restart: unless-stopped
+    # El bot le lee estos logs con `docker logs` cuando le rebota un feed: el error que devuelve
+    # Nitter es siempre el mismo cartel genérico y la causa real (Cloudflare, cuenta bloqueada,
+    # rate limit, red) sólo aparece acá. Con techo, que `enableDebug` escribe bastante y la SD
+    # del Pi no es infinita; 30 MB alcanzan de sobra para la ventana de un minuto que mira el bot
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Sin healthcheck a propósito: el único chequeo real sería pedir un RSS, y eso son llamadas
     # de verdad a la API de X que gastan el rate limit de la sesión. Para saber si anda, el
     # curl del README a mano; para saber si dejó de andar, el aviso del bot en #robot-devil

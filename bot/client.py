@@ -48,6 +48,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
+        await self.load_extension('bot.commands.nitter')
         await self.load_extension('bot.commands.transmitir')
         await self.load_extension('bot.commands.limpiar')
         await self.load_extension('bot.commands.reiniciar')

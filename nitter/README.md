@@ -62,25 +62,73 @@ En el `.env`:
 NITTER_HOST_URL=http://127.0.0.1:19050
 ```
 
-Con eso entra al repositorio de mirrors como `source=self` y **rankea antes que cualquier
-pública**, andando o no. `!nitter` la muestra marcada como "la mía".
+Sin esa var el bot no lee Twitter y listo; no hay mirrors ajenos a los que caerse.
 
 ## Cuánto margen de rate limit queda
 
-`enableDebug = true` expone el estado de las sesiones, con el límite que X reporta para cada una:
+`enableDebug = true` expone el estado de las sesiones con el límite que X reporta para cada
+endpoint. Los dos endpoints son locales y **no llaman a X**, así que preguntar sale gratis:
 
 ```bash
-curl -s http://127.0.0.1:19050/.sessions
+curl -s http://127.0.0.1:19050/.sessions   # remaining / limit / reset por sesión y endpoint
+curl -s http://127.0.0.1:19050/.health     # sesiones cargadas y pedidos desde que arrancó
 ```
 
-Sirve para decidir con datos si hace falta aflojar la cadencia del bot, en vez de suponer. El
-bot lee ~54 feeds por día (18 horas activas × 3 cuentas por vuelta), que es poco: si algún día
-querés seguir más cuentas, mirá esto antes de recortar el `_BATCH_SIZE` de
-`bot/scheduled/twitter_check.py`.
+Desde Discord es lo mismo pero sin entrar al Pi: **`!nitter`** en `#robot-devil` muestra el
+margen por endpoint, cuándo se repone, cuántas cuentas leería el bot ahora mismo y cuándo es
+la próxima vuelta.
 
-Si un día te aparecen sesiones limitadas seguido, la solución que mejor escala no es pedir
-menos sino **sumar cuentas**: una línea más en `sessions.jsonl` y Nitter rota solo, llevando el
-rate limit de cada una por separado.
+Eso no es sólo para mirar: es lo que maneja el ritmo. El bot pide `/.sessions` antes de cada
+vuelta y de ahí saca cuántas cuentas leer (ver `integrations/nitter.py`). Nunca baja del
+colchón —el piso duro de 10 con el que Nitter descarta una sesión, o un cuarto de la ventana,
+lo que sea más alto— y de lo que sobra gasta un cuarto, con techo de 3 cuentas por vuelta cada
+60-150 minutos (unos 30 feeds por día contra los 54 fijos de antes). Si no hay margen no lee y no avisa nada; si `/.sessions` cambia de formato y no
+lo puede parsear, baja a una cuenta por vuelta en vez de asumir que hay aire.
+
+Por eso no hay una constante de "cuántos feeds por hora" para tocar: si querés seguir más
+cuentas, no hace falta recortar nada, el presupuesto se acomoda solo. Y si te aparecen sesiones
+limitadas seguido, la solución que mejor escala no es pedir menos sino **sumar cuentas**: una
+línea más en `sessions.jsonl`, Nitter rota solo llevando el rate limit de cada una por
+separado, y el presupuesto del bot suma los márgenes de todas.
+
+Cuando la instancia igual devuelve un 429, el bot no reintenta a la hora: espera 1 h, 2 h, 4 h
+y 6 h por cada falla seguida, avisa una sola vez por episodio en `#robot-devil` —con los
+números que dice `/.sessions`, así el aviso sirve para algo— y vuelve a avisar cuando la cosa
+se normaliza.
+
+## Por qué falló de verdad
+
+**El HTTP que devuelve Nitter no te dice nada.** `rateLimitError()` en `apiutils.nim` es un
+cajón de sastre: el mismo cartel *"Instance has been rate limited"* lo tira un challenge de
+Cloudflare, una cuenta bloqueada, el rate limit posta, un 404 transitorio, las credenciales
+vacías y un `except Exception` que se traga cualquier falla de red del Pi. Un microcorte de
+internet te da exactamente el mismo error que una cuenta quemada.
+
+La causa real la escribe por stdout, y esas líneas **no** dependen de `enableDebug`:
+
+| Lo que ves en el log | Qué pasó |
+|---|---|
+| `[cloudflare] 403 (Just a moment...)` | Challenge: X marcó el tráfico. Esto sí es flagging |
+| `Fetch error, ... errors: locked` (o `badToken`, `expiredToken`) | Cuenta bloqueada o sesión vencida → hay que rehacer `sessions.jsonl` |
+| `[sessions] 429 error` / `rate limited by api:` | Rate limit de verdad: aflojar o sumar cuentas |
+| `error: <excepción>, msg: ...` | Red, DNS o TLS del Pi. No tiene nada que ver con X |
+| `[sessions] transient 404 (empty body)` | Hipo de X, se pasa solo |
+
+A mano:
+
+```bash
+docker logs --since 24h nitter | grep -E "cloudflare|Fetch error|429|rate limited by api|^error:"
+```
+
+Pero no hace falta ir a mirar: **el bot le lee estas líneas al contenedor en el momento en que
+le rebota un feed** (`docker logs --since 90s`) y las pega en el aviso de `#robot-devil`, así
+el aviso dice la causa en vez de repetir el cartel genérico. `!nitter` muestra las de la última
+hora. Para eso el usuario con el que corre el bot tiene que poder ejecutar `docker` (el mismo
+que hace `docker compose up -d`); si no puede, el aviso lo aclara y todo lo demás sigue igual.
+El nombre del contenedor sale de `NITTER_CONTAINER` en el `.env` (default `nitter`).
+
+Y como de estos logs ahora dependemos, el `compose.yml` les puso techo (`max-size: 10m`,
+`max-file: 3`): con `enableDebug` Nitter escribe bastante y la SD del Pi no es infinita.
 
 ## Notas
 
@@ -89,7 +137,8 @@ rate limit de cada una por separado.
   abriendo el puerto.
 - Puerto `19050` (año de fundación del Rojo), fuera del rango efímero de Linux.
 - Redis está capado a 128 MB con `allkeys-lru` y sin persistencia: es cache, no datos.
-- El RSS se cachea 60 min (`rssMinutes`), alineado con el loop de 1 h del bot.
+- El RSS se cachea 60 min (`rssMinutes`): si el bot vuelve a pedir el mismo feed dentro de la
+  hora, se lo sirve Redis sin gastar un pedido a X.
 - El contenedor de Nitter **no** tiene healthcheck: el único chequeo real sería pedir un RSS,
   y eso gasta rate limit de la sesión cada vez. Para saber si anda, el `curl` de más arriba.
 - Consumo total esperado: ~150 MB de RAM.

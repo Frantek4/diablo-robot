@@ -1,4 +1,5 @@
 import asyncio
+import random
 import re
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
@@ -9,19 +10,17 @@ import aiohttp
 import feedparser
 
 from config.settings import settings
+from integrations.nitter import instance_url
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
 
-# Espera fija entre feed y feed: la instancia es mía, pero el rate limit de X lo paga igual la sesión
-_FEED_DELAY = 60
+# Espera entre feed y feed, con jitter: la instancia es mía, pero el rate limit lo paga la sesión, y
+# pedir siempre cada exactamente 60 segundos es justo el patrón que a X le resulta fácil de marcar
+_FEED_DELAY = (90, 240)
 
 
-def instance_url() -> str | None:
-    """La instancia propia de Nitter. Si no le puse esquema asumo http: corre en la misma máquina."""
-    raw = (settings.NITTER_HOST_URL or "").strip().rstrip("/")
-    if not raw:
-        return None
-    return raw if raw.startswith(("http://", "https://")) else f"http://{raw}"
+def feed_delay() -> float:
+    return random.uniform(*_FEED_DELAY)
 
 
 def nitter_error_reason(body: str) -> str | None:
@@ -150,11 +149,18 @@ def parse_entry(entry: dict, influencer: dict) -> dict | None:
 
 
 class InstanceDown(Exception):
-    """La instancia no sirve ahora mismo: es problema de Nitter, no de la cuenta que estaba leyendo."""
+    """La instancia no sirve ahora mismo: es problema de Nitter, no de la cuenta que estaba leyendo.
 
-    def __init__(self, reason: str):
+    `rate_limited` separa el caso en que X nos frenó (hay que aflojar el ritmo, no reintentar) del
+    resto; `consumed` dice cuántas cuentas alcancé a leer antes de cortar, para que el que rota el
+    cursor no dé por leídas las que quedaron colgadas.
+    """
+
+    def __init__(self, reason: str, rate_limited: bool = False):
         super().__init__(reason)
         self.reason = reason
+        self.rate_limited = rate_limited
+        self.consumed = 0
 
 
 class Twitter:
@@ -164,8 +170,9 @@ class Twitter:
     async def check_rss_notifications(self, influencers: List[InfluencerModel] | None = None) -> int:
         """Devuelve cuántas cuentas quedaron consumidas.
 
-        Si la instancia se cae corto el scaneo: sin ella no hay Twitter, y las cuentas que no llegué a
-        leer no cuentan, así el scheduler las reintenta en la vuelta siguiente en vez de saltearlas.
+        Si la instancia se cae tiro `InstanceDown` con lo que alcancé a leer adentro: sin ella no hay
+        Twitter, y quién decide cuánto esperar para volver a intentar es el scheduler, que es el que
+        lleva el ritmo. Las cuentas que no llegué a leer no cuentan, así salen primero la vez que viene.
         """
         base_url = instance_url()
         if not base_url:
@@ -180,30 +187,27 @@ class Twitter:
         failures: list[str] = []
         consumed = 0
 
-        async with aiohttp.ClientSession() as session:
-            for index, influencer in enumerate(influencers):
-                try:
-                    reason = await self._process_influencer(session, base_url, influencer, one_week_ago)
-                except InstanceDown as e:
-                    await self.bot.messager.log(
-                        f"Mi instancia de Nitter no está sirviendo feeds ({e.reason}). Corto el scaneo de "
-                        f"Twitter y sigo en la próxima vuelta. Si insiste, mirá el contenedor en el Pi.",
-                        level="ERROR",
-                    )
-                    break
+        try:
+            async with aiohttp.ClientSession() as session:
+                for index, influencer in enumerate(influencers):
+                    try:
+                        reason = await self._process_influencer(session, base_url, influencer, one_week_ago)
+                    except InstanceDown as e:
+                        e.consumed = consumed
+                        raise
 
-                consumed = index + 1
-                if reason:
-                    failures.append(f"@{influencer['name']} ({reason})")
+                    consumed = index + 1
+                    if reason:
+                        failures.append(f"@{influencer['name']} ({reason})")
 
-                if index + 1 < len(influencers):
-                    await asyncio.sleep(_FEED_DELAY)
-
-        if failures:
-            await self.bot.messager.log(
-                f"No pude leer {len(failures)} feed(s) de Twitter: {', '.join(failures)}.",
-                level="WARNING",
-            )
+                    if index + 1 < len(influencers):
+                        await asyncio.sleep(feed_delay())
+        finally:
+            if failures:
+                await self.bot.messager.log(
+                    f"No pude leer {len(failures)} feed(s) de Twitter: {', '.join(failures)}.",
+                    level="WARNING",
+                )
         return consumed
 
     async def _process_influencer(self, session, base_url, influencer, one_week_ago) -> str | None:
@@ -228,7 +232,8 @@ class Twitter:
 
         if status != 200:
             reason = nitter_error_reason(content)
-            raise InstanceDown(f"HTTP {status}: {reason}" if reason else f"HTTP {status}")
+            rate_limited = status == 429 or "rate limited" in (reason or "").lower()
+            raise InstanceDown(f"HTTP {status}: {reason}" if reason else f"HTTP {status}", rate_limited)
 
         feed = feedparser.parse(content)
 
