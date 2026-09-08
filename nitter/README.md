@@ -111,7 +111,9 @@ La causa real la escribe por stdout, y esas líneas **no** dependen de `enableDe
 | `[cloudflare] 403 (Just a moment...)` | Challenge: X marcó el tráfico. Esto sí es flagging |
 | `Fetch error, ... errors: locked` (o `badToken`, `expiredToken`) | Cuenta bloqueada o sesión vencida → hay que rehacer `sessions.jsonl` |
 | `[sessions] 429 error` / `rate limited by api:` | Rate limit de verdad: aflojar o sumar cuentas |
-| `error: <excepción>, msg: ...` | Red, DNS o TLS del Pi. No tiene nada que ver con X |
+| `error: ProtocolError, msg: Connection was closed before full request has been made` | Nitter reusó una conexión que del otro lado ya estaba cerrada (ver abajo). **El pedido ni llegó a X** |
+| `error: <otra excepción>, msg: ...` | Red, DNS o TLS del Pi. Tampoco llegó a X |
+| `[sessions] Rate limited, retrying (0/1)` | Consecuencia, no causa — y con `maxRetries = 1` ni siquiera reintenta |
 | `[sessions] transient 404 (empty body)` | Hipo de X, se pasa solo |
 
 A mano:
@@ -123,7 +125,35 @@ docker logs --since 24h nitter | grep -E "cloudflare|Fetch error|429|rate limite
 Pero no hace falta ir a mirar: **el bot le lee estas líneas al contenedor en el momento en que
 le rebota un feed** (`docker logs --since 90s`) y las pega en el aviso de `#robot-devil`, así
 el aviso dice la causa en vez de repetir el cartel genérico. `!nitter` muestra las de la última
-hora. Para eso el usuario con el que corre el bot tiene que poder ejecutar `docker` (el mismo
+hora. Y las usa para decidir: si el log sólo tiene el `error: ...` del catch-all, el pedido nunca
+llegó a X, así que **no** corre el backoff de horas —no protegería a nadie— y sigue con el ritmo
+normal. El backoff queda para cuando el log muestra a X contestando.
+
+### El 429 que no era rate limit
+
+Durante los primeros días la instancia tiraba un 429 cada tres o cuatro horas con este log:
+
+```
+error: ProtocolError, msg: Connection was closed before full request has been made
+[sessions] Rate limited, retrying .../UserWithProfileTweetsQueryV2 request (0/1)...
+```
+
+No era rate limit ni tenía nada que ver con la cuenta: `http_pool.nim` guarda las conexiones que
+Nitter abre contra x.com y las reusa, y `acquire` saca **siempre la más vieja** del pool. Entre
+vuelta y vuelta del bot pasan una o dos horas, así que X hace rato que las cerró: el pedido escribe
+sobre un socket muerto, Nim tira `ProtocolError`, el `except Exception` de `apiutils.nim` lo
+convierte en `rateLimitError()` y de ahí sale el mismo cartel genérico de siempre. El pool tenía
+techo de 32 conexiones, o sea 32 sockets muertos rotando; el reintento que trae `http_pool.nim`
+agarraba otro igual de muerto y ahí sí moría el feed.
+
+Por eso `httpMaxConnections = 0`: sin pool, cada pedido abre su propia conexión. A ~30 pedidos por
+día un handshake de más no se nota, y los 429 inventados desaparecen.
+
+Del lado del bot queda la red igual: cuando un feed rebota y el log dice que la falla no la puso X,
+reintenta ese feed una vez a los 10 s (`_read_feed` en `integrations/twitter.py`) en vez de perder
+la vuelta entera. Sale gratis: ese pedido nunca existió para X, no gastó rate limit.
+
+Para eso el usuario con el que corre el bot tiene que poder ejecutar `docker` (el mismo
 que hace `docker compose up -d`); si no puede, el aviso lo aclara y todo lo demás sigue igual.
 El nombre del contenedor sale de `NITTER_CONTAINER` en el `.env` (default `nitter`).
 

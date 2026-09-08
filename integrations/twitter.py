@@ -10,13 +10,16 @@ import aiohttp
 import feedparser
 
 from config.settings import settings
-from integrations.nitter import instance_url
+from integrations import nitter
 from models.influencer import InfluencerModel
 from models.social_media import SocialMedia
 
 # Espera entre feed y feed, con jitter: la instancia es mía, pero el rate limit lo paga la sesión, y
 # pedir siempre cada exactamente 60 segundos es justo el patrón que a X le resulta fácil de marcar
 _FEED_DELAY = (90, 240)
+# Lo que espero antes de reintentar un feed que se cayó sin haber llegado a X. Corto a propósito:
+# no es una espera para que se calme nadie, es para no reusar el socket que se acaba de morir
+_RETRY_DELAY = 10
 
 
 def feed_delay() -> float:
@@ -174,7 +177,7 @@ class Twitter:
         Twitter, y quién decide cuánto esperar para volver a intentar es el scheduler, que es el que
         lleva el ritmo. Las cuentas que no llegué a leer no cuentan, así salen primero la vez que viene.
         """
-        base_url = instance_url()
+        base_url = nitter.instance_url()
         if not base_url:
             return 0
 
@@ -191,7 +194,7 @@ class Twitter:
             async with aiohttp.ClientSession() as session:
                 for index, influencer in enumerate(influencers):
                     try:
-                        reason = await self._process_influencer(session, base_url, influencer, one_week_ago)
+                        reason = await self._read_feed(session, base_url, influencer, one_week_ago)
                     except InstanceDown as e:
                         e.consumed = consumed
                         raise
@@ -209,6 +212,24 @@ class Twitter:
                     level="WARNING",
                 )
         return consumed
+
+    async def _read_feed(self, session, base_url, influencer, one_week_ago) -> str | None:
+        """Un feed, con un reintento cuando la falla no la puso X.
+
+        Nitter reusa las conexiones que tiene abiertas contra x.com, y entre vuelta y vuelta del bot
+        pasan horas: del otro lado ya las cerraron, así que el pedido sale por un socket muerto y
+        vuelve como "Instance has been rate limited". Ese pedido nunca existió para X —no gastó rate
+        limit ni lo vio nadie—, así que reintentarlo es gratis y perder la vuelta entera por eso es
+        regalar tweets. Si en cambio el log muestra a X contestando, no insisto: eso sí se paga.
+        """
+        try:
+            return await self._process_influencer(session, base_url, influencer, one_week_ago)
+        except InstanceDown as e:
+            if not e.rate_limited or nitter.blames_x(await nitter.recent_failures()) is not False:
+                raise
+
+        await asyncio.sleep(_RETRY_DELAY)
+        return await self._process_influencer(session, base_url, influencer, one_week_ago)
 
     async def _process_influencer(self, session, base_url, influencer, one_week_ago) -> str | None:
         """Devuelve el motivo de la falla de la cuenta, o None si salió bien. Si falla la instancia, tira InstanceDown."""

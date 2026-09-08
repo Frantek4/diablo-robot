@@ -214,6 +214,23 @@ _LOG_LINE_CHARS = 200
 _DOCKER_TIMEOUT = 10
 
 
+# De todo lo que Nitter escupe, sólo estas líneas son X contestando algo: un challenge, una cuenta
+# bloqueada, el límite de verdad. El `error: ...` del catch-all es la conexión cortándose antes de
+# llegar, y el `Rate limited, retrying` es la consecuencia, no la causa
+_LOG_FROM_X = re.compile(r"\[cloudflare\]|Fetch error|429 error|rate limited by api")
+
+
+def blames_x(failures: list[str] | None) -> bool | None:
+    """¿La falla la puso X o el camino hasta X? None cuando no tengo con qué decidir.
+
+    Importa porque son cosas opuestas: si X nos frenó hay que aflojar, pero si la conexión se cortó
+    antes de llegar, el pedido nunca existió para X y esperar horas no protege a nadie.
+    """
+    if not failures:
+        return None
+    return any(_LOG_FROM_X.search(line) for line in failures)
+
+
 async def recent_failures(seconds: int = 90, lines: int = _LOG_LINES) -> list[str] | None:
     """Lo que escupió el contenedor recién, filtrado a las líneas que explican la falla.
 

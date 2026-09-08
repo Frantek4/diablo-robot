@@ -127,29 +127,36 @@ class TwitterCheckScheduler(commands.Cog):
     async def _handle_instance_down(self, error: InstanceDown, total: int):
         now = datetime.now(settings.TIMEZONE)
         self._advance_cursor(error.consumed, total)
-        self._backoff_step = min(self._backoff_step + 1, len(_BACKOFF_HOURS))
         self._last_failure = error.reason
 
-        hours = _BACKOFF_HOURS[self._backoff_step - 1] * random.uniform(0.9, 1.2)
-        retry_at = now + timedelta(hours=hours)
-
-        # El estado de la instancia va en el aviso siempre, porque es lo que hace que el aviso sirva
-        # para algo; pero estirar la espera hasta que se reponga la ventana sólo tiene sentido si lo
-        # que pasó fue un rate limit: si la sesión se quemó, esperar el reset no arregla nada
         pool = await nitter.get_pool()
-        if error.rate_limited and pool and pool.resumes_at and pool.resumes_at > retry_at:
-            retry_at = pool.resumes_at
-        self._next_run_at = retry_at
+        failures = await nitter.recent_failures()
+        # Que X nos frene y que se corte la conexión con X son cosas opuestas, aunque Nitter las
+        # cuente con el mismo cartel. Si el pedido nunca llegó, esperar horas no protege a nadie: sólo
+        # nos deja sin tweets. El backoff es para el castigo, no para la red
+        punished = nitter.blames_x(failures) is not False
 
-        await self.bot.messager.log(await self._failure_report(error, pool, retry_at), level="ERROR")
+        if punished:
+            self._backoff_step = min(self._backoff_step + 1, len(_BACKOFF_HOURS))
+            hours = _BACKOFF_HOURS[self._backoff_step - 1] * random.uniform(0.9, 1.2)
+            retry_at = now + timedelta(hours=hours)
+            # Estirar la espera hasta que se reponga la ventana sólo tiene sentido si lo que pasó fue
+            # un rate limit: si la sesión se quemó, esperar el reset no arregla nada
+            if error.rate_limited and pool and pool.resumes_at and pool.resumes_at > retry_at:
+                retry_at = pool.resumes_at
+            self._next_run_at = retry_at
+        else:
+            self._schedule_next(None, now)
 
-    async def _failure_report(self, error: InstanceDown, pool, retry_at: datetime) -> str:
+        await self.bot.messager.log(await self._failure_report(error, pool, failures, punished),
+                                    level="ERROR")
+
+    async def _failure_report(self, error: InstanceDown, pool, failures, punished: bool) -> str:
         """El HTTP que devuelve Nitter no dice nada: el mismo cartel sirve para un challenge de
         Cloudflare, una cuenta bloqueada, el rate limit de verdad o un corte de red. Así que el aviso
         no afirma una causa: trae lo que el contenedor escribió recién y deja que se vea sola."""
         parts = [f"Mi instancia de Nitter no está sirviendo feeds ({error.reason})."]
 
-        failures = await nitter.recent_failures()
         if failures:
             parts.append("Nitter escupió esto: " + " ".join(f"`{line}`" for line in failures))
         elif failures is None:
@@ -157,14 +164,19 @@ class TwitterCheckScheduler(commands.Cog):
         else:
             parts.append("En sus logs no dijo nada, así que la falla no llegó a la API de X.")
 
-        if error.rate_limited and pool and pool.feeds:
+        if not punished:
+            parts.append("Eso es la conexión con X cortándose antes de llegar, no un castigo: el "
+                         "pedido nunca existió para X, así que no lo cuento para el backoff.")
+        elif error.rate_limited and pool and pool.feeds:
             parts.append("Ojo que le queda margen de sobra, así que esto **no** es límite de X: "
                          "apuntá a la sesión (¿se quemó?) o a la red del Pi.")
+
         if pool:
             parts.append(f"Sesiones: {pool.detail}.")
 
-        parts.append(f"Dejo Twitter tranquilo hasta las {format_time(retry_at)} para no seguir "
-                     f"golpeando la sesión.")
+        when = format_time(self._next_run_at)
+        parts.append(f"Dejo Twitter tranquilo hasta las {when} para no seguir golpeando la sesión."
+                     if punished else f"Sigo con el ritmo de siempre, próxima a las {when}.")
         return " ".join(parts)
 
     def _next_batch(self, influencers: list, size: int) -> list:
