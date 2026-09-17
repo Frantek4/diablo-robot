@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import instaloader
 from instaloader.exceptions import (
     AbortDownloadException,
+    BadResponseException,
     ConnectionException,
     LoginRequiredException,
     ProfileNotExistsException,
@@ -39,6 +40,14 @@ class AccountFlagged(Exception):
         self.consumed = consumed
 
 
+class ProfileMissing(Exception):
+    """Esa cuenta no está (la borraron, se cambió el nombre, se puso privada).
+
+    Es de una cuenta sola y no dice nada de la nuestra: se saltea y se sigue. Que llegue a existir
+    como excepción aparte es el punto: Instagram devuelve lo mismo cuando la sesión dejó de servir.
+    """
+
+
 class Throttled(Exception):
     """Instagram frenó, pero sin acusar a la cuenta: un 429, un 400 suelto, la conexión cortada.
 
@@ -68,6 +77,9 @@ class Instagram:
         self.bot = bot
         self._loader: instaloader.Instaloader | None = None
         self._profiles: dict[str, instaloader.Profile] = {}
+        # Si la sesión sirve o no, averiguado una sola vez por vuelta: la respuesta vale para todas
+        # las cuentas de esa vuelta y no hay por qué pagar el pedido una vez por cuenta
+        self._session_alive: bool | None = None
 
     def _get_loader(self) -> instaloader.Instaloader:
         if self._loader is not None:
@@ -119,6 +131,7 @@ class Instagram:
         """
         cutoff = datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)
         consumed = 0
+        self._session_alive = None
 
         for index, influencer in enumerate(influencers):
             if index:
@@ -130,9 +143,8 @@ class Instagram:
                 # así una vuelta cortada a la mitad no deja cuentas sin leer para siempre
                 e.consumed = consumed
                 raise
-            except (ProfileNotExistsException, QueryReturnedNotFoundException) as e:
-                # Le pasa a una cuenta sola (la borraron, se cambió el nombre, se puso privada) y no
-                # dice nada sobre la nuestra: se saltea y se sigue
+            except ProfileMissing as e:
+                # Ya está confirmado que la sesión sirve, así que esto es de esta cuenta sola
                 self._profiles.pop(influencer["name"], None)
                 await self.bot.messager.log(
                     f"No encontré la cuenta de Instagram @{influencer['name']}: {e}",
@@ -156,10 +168,14 @@ class Instagram:
         except Throttled:
             self._profiles.pop(username, None)
             raise
-        except (ProfileNotExistsException, QueryReturnedNotFoundException):
+        except (ProfileNotExistsException, QueryReturnedNotFoundException) as e:
             # Va antes que ConnectionException a propósito: `QueryReturnedNotFoundException` hereda
-            # de ella, y un 404 de una cuenta es lo contrario de un freno de Instagram
-            raise
+            # de ella, y "esa cuenta no existe" es lo contrario de un freno de Instagram
+            raise await self._explain(username, e, missing=True) from e
+        except (BadResponseException, KeyError, TypeError) as e:
+            # Instagram contestó algo que no se parece a un feed. Con la sesión muerta, el pedido
+            # vuelve sin `data` y el parseo se rompe justo así
+            raise await self._explain(username, e, missing=False) from e
         except (TooManyRequestsException, QueryReturnedBadRequestException, ConnectionException) as e:
             self._profiles.pop(username, None)
             raise Throttled(str(e)) from e
@@ -181,6 +197,39 @@ class Instagram:
             )
             self.bot.news_dao.insert(url)
             await asyncio.sleep(1)
+
+    async def _explain(self, username: str, error: Exception, missing: bool) -> Exception:
+        """Instagram dice «esa cuenta no existe» tanto cuando la cuenta no existe como cuando la
+        sesión dejó de servir: sin sesión válida la búsqueda vuelve vacía y el resultado es idéntico
+        hasta en el texto. Y las dos salidas son opuestas — una cuenta borrada se saltea y se sigue,
+        una sesión muerta tiene que frenar todo—, así que la diferencia no se adivina: se pregunta.
+        `test_login()` es un pedido y contesta con qué usuario estamos entrando, o con nada.
+
+        Sin eso pasaba lo que pasó: la sesión se cayó y el bot recorrió la rueda entera avisando
+        diez veces que diez cuentas que existen no existían, sin frenar nunca.
+        """
+        if self._session_alive is None:
+            loop = asyncio.get_running_loop()
+            self._session_alive = await loop.run_in_executor(None, self._check_session)
+
+        if not self._session_alive:
+            self._reset()
+            return AccountFlagged(
+                f"la sesión de @{settings.IG_USERNAME} dejó de servir: Instagram me contestó "
+                f"«{error}» para @{username}, pero además no reconoce con qué cuenta entro"
+            )
+        return ProfileMissing(str(error)) if missing else error
+
+    def _check_session(self) -> bool:
+        """Devuelve si la sesión sigue siendo la nuestra. Ante la duda, no: no poder confirmar que
+        sirve es motivo de sobra para dejar de pedir."""
+        try:
+            who = self._get_loader().test_login()
+        except Throttled:
+            raise
+        except Exception:
+            return False
+        return bool(who) and who.lower() == settings.IG_USERNAME.lower()
 
     def _profile(self, influencer: dict) -> instaloader.Profile:
         """Una cuenta leída = un pedido, y ese pedido es el feed.
@@ -245,3 +294,4 @@ class Instagram:
     def _reset(self):
         self._loader = None
         self._profiles.clear()
+        self._session_alive = None
