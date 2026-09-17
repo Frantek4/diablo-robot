@@ -8,10 +8,16 @@ depender de mirrors ajenos.
 
 ```bash
 cd nitter
+cp nitter.conf.example nitter.conf                           # la config viva no se trackea
 sed -i "s/REEMPLAZAR/$(openssl rand -hex 32)/" nitter.conf   # hmacKey
 cp sessions.jsonl.example sessions.jsonl                     # y completalo (ver abajo)
 docker compose up -d
 ```
+
+`nitter.conf` está en el `.gitignore` por la misma razón que `sessions.jsonl`: lleva el `hmacKey`
+que se genera en cada máquina, así que si estuviera trackeado cada `git pull` en el Pi chocaría
+contra la clave local. Cuando cambie algo de la config, el cambio va al `.example` y se copia a
+mano el renglón que corresponda.
 
 Probar que sirve RSS de verdad (que devuelva `<item>` con links a `/status/`, no solo un 200):
 

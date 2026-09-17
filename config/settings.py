@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     GUILD_ID: int
     IG_USERNAME: str = ""
     IG_PASSWORD: str = ""
+    # El User-Agent del navegador con el que se sacaron las cookies de la sesión de Instagram.
+    # Cookies hechas en Firefox viajando con un User-Agent de Chrome es una contradicción que se ve
+    # del otro lado. Vacío = el default de instaloader (Chrome en Linux)
+    IG_USER_AGENT: str = ""
     GENERAL_VOICE_CHANNEL_ID: int
     TERMOS_VOICE_CHANNEL_ID: int
     GENERAL_TEXT_CHANNEL_ID: int

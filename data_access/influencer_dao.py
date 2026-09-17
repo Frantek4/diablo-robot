@@ -36,3 +36,11 @@ class InfluencerDAO:
 
     def get_by_platform_and_attention(self, platform: SocialMedia, attention: AttentionLevel) -> list:
         return list(self.collection.find({"platform": platform.value, "attention": attention.value}))
+
+    def set_account_id(self, name: str, platform: SocialMedia, account_id: str):
+        """El id numérico se resuelve una sola vez en la vida: guardarlo evita volver a pasar por
+        el buscador de Instagram cada vez que el bot arranca."""
+        self.collection.update_one(
+            {"name": name, "platform": platform.value},
+            {"$set": {"account_id": account_id}}
+        )

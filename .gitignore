@@ -219,5 +219,10 @@ CLAUDE.md
 google-calendar.json
 *.iam.gserviceaccount.json
 
+# Config viva de Nitter: lleva el hmacKey generado en cada máquina, así que se copia de
+# nitter.conf.example y no se trackea. Si estuviera en el repo, cada `git pull` en el Pi
+# chocaría contra la clave local
+nitter/nitter.conf
+
 # Cookies de la cuenta de X que usa la instancia propia de Nitter
 nitter/sessions.jsonl
