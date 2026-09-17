@@ -50,7 +50,13 @@ class InstagramCheckScheduler(commands.Cog):
         self.instagram_scheduled_job.cancel()
 
     def start_scheduled_job(self):
-        if not self.instagram_scheduled_job.is_running():
+        """Lo llama `on_ready()` al arrancar y también `!instagram reanudar`, así que tiene que
+        aguantar las tres situaciones: el loop apagado, corriendo, o recién cancelado y todavía sin
+        terminar de morir (cancelar es asincrónico, y un `detener` seguido de un `reanudar` rápido
+        cae justo en ese hueco)."""
+        if self.instagram_scheduled_job.is_running():
+            self.instagram_scheduled_job.restart()
+        else:
             self.instagram_scheduled_job.start()
 
     @tasks.loop(minutes=_TICK_MINUTES)
@@ -58,7 +64,12 @@ class InstagramCheckScheduler(commands.Cog):
         state = self.dao.get()
 
         if state.get("blocked"):
+            # Frenado quiere decir frenado: se avisa una vez y el loop se apaga, en vez de quedar
+            # despertándose cada cinco minutos para volver a decidir que no hace nada. Esta vuelta
+            # existe sólo para que el aviso salga después de un reinicio del bot, cuando el estado
+            # viene de Mongo y nadie se acuerda de por qué no hay posts
             await self._remind_blocked(state)
+            self.instagram_scheduled_job.stop()
             return
 
         now = datetime.now(settings.TIMEZONE)
@@ -116,8 +127,8 @@ class InstagramCheckScheduler(commands.Cog):
             when = self._as_local(state.get("blocked_at"))
             lines.append(f"🛑 **Frenado desde {format_datetime(when) if when else '?'}**: "
                          f"{state.get('blocked_reason', 'sin motivo guardado')}")
-            lines.append(f"No vuelvo a pedirle nada a Instagram hasta que corras "
-                         f"`{settings.PREFIX}instagram reanudar`.")
+            lines.append(f"El scaneo está apagado del todo — ni siquiera tictaquea — hasta que "
+                         f"corras `{settings.PREFIX}instagram reanudar`.")
             return lines
 
         last_read = self._as_local(state.get("last_read_at"))
@@ -190,6 +201,9 @@ class InstagramCheckScheduler(commands.Cog):
         self._advance(high, low, state, error.consumed)
         self.dao.block(error.reason, now)
         self._reminded = True
+        # `stop()` y no `cancel()`: estamos adentro del propio loop, así que se lo deja terminar
+        # esta vuelta y no arranca la siguiente
+        self.instagram_scheduled_job.stop()
         await self.bot.messager.log(
             f"**Instagram marcó la cuenta y dejo de leer.** Dijo: `{error.reason[:400]}`. "
             f"Esto no se arregla esperando: entrá a Instagram con @{settings.IG_USERNAME} desde el "

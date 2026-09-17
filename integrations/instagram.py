@@ -80,6 +80,7 @@ class Instagram:
         # Si la sesión sirve o no, averiguado una sola vez por vuelta: la respuesta vale para todas
         # las cuentas de esa vuelta y no hay por qué pagar el pedido una vez por cuenta
         self._session_alive: bool | None = None
+        self._stop = False
 
     def _get_loader(self) -> instaloader.Instaloader:
         if self._loader is not None:
@@ -123,6 +124,15 @@ class Instagram:
         self._loader = loader
         return loader
 
+    def request_stop(self):
+        """Corta la vuelta que esté corriendo en este momento.
+
+        Una vuelta puede durar varios minutos —los huecos entre cuenta y cuenta son de 45 a 180 s—,
+        así que sin esto un `!instagram detener` tardaría todo eso en surtir efecto, que es
+        justamente el rato en que uno quiere que el bot deje de pedir ya.
+        """
+        self._stop = True
+
     async def check_notifications(self, influencers: list[dict]) -> int:
         """Lee las cuentas que le pasen y devuelve cuántas alcanzó a leer.
 
@@ -132,10 +142,13 @@ class Instagram:
         cutoff = datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)
         consumed = 0
         self._session_alive = None
+        self._stop = False
 
         for index, influencer in enumerate(influencers):
             if index:
                 await asyncio.sleep(random.uniform(*_BETWEEN_ACCOUNTS_SECONDS))
+            if self._stop:
+                break
             try:
                 await self._process_influencer(influencer, cutoff)
             except (AccountFlagged, Throttled) as e:
