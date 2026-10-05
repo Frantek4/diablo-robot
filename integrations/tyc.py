@@ -27,7 +27,7 @@ class TycSportsScraper:
                     full_url = f"{self.domain}/{url}.html"
                     async with session.get(full_url, headers=self.headers, timeout=10) as response:
                         response.raise_for_status()
-                        html = await response.text()
+                        html = await response.text(errors="replace")
                 
                     soup = BeautifulSoup(html, 'lxml')
                     news_links = self._extract_news_links(url, soup)
@@ -73,7 +73,7 @@ class TycSportsScraper:
     async def _get_article_details(self, article_url, session: aiohttp.ClientSession):
         try:
             async with session.get(article_url, headers=self.headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                html = await response.text()
+                html = await response.text(errors="replace")
 
             soup = BeautifulSoup(html, 'lxml')
 
