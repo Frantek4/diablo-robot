@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     IG_PASSWORD: str = ""
     # El User-Agent del navegador con el que se sacaron las cookies de la sesión de Instagram.
     # Cookies hechas en Firefox viajando con un User-Agent de Chrome es una contradicción que se ve
-    # del otro lado. Vacío = el default de instaloader (Chrome en Linux)
+    # del otro lado. Vacío = el USER_AGENT de los scrapers
     IG_USER_AGENT: str = ""
     GENERAL_VOICE_CHANNEL_ID: int
     TERMOS_VOICE_CHANNEL_ID: int
@@ -30,11 +30,12 @@ class Settings(BaseSettings):
     FOOTBALL_FORUM_ID: int
     GAMES_CATEGORY_ID: int
     USER_AGENT: str
-    # Instancia propia de Nitter (Docker en el Pi). Sin esto el bot no lee Twitter.
-    NITTER_HOST_URL: str = ""
-    # Nombre del contenedor, para leerle los logs con `docker logs` cuando un feed rebota: el error
-    # que devuelve Nitter es siempre el mismo cartel genérico y la causa real sólo está ahí
-    NITTER_CONTAINER: str = "nitter"
+    # Cuenta de X con la que se leen los tweets. Sin esto el bot no lee Twitter. Las cookies van en
+    # ~/.config/diablo-robot/x-session-<usuario>.json (ver tools/x_session.py)
+    X_USERNAME: str = ""
+    # El User-Agent del navegador del que salieron las cookies: cookies de Firefox viajando con otro
+    # User-Agent es una contradicción que se ve del otro lado. Vacío = el USER_AGENT de los scrapers
+    X_USER_AGENT: str = ""
     DATABASE_URL: str = "mongodb://localhost:27017/diablo_robot"
     DATABASE_USERNAME: str
     DATABASE_PASSWORD: str

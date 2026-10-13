@@ -210,7 +210,7 @@ def probe_instagram():
 # ------------------------------------------------------------------------ X
 
 def load_x_cookies(path: Path):
-    """Las cookies que hoy usa Nitter. Todavía no existe X_SESSION_FILE: sale de sessions.jsonl."""
+    """Las cookies del bot, las que escribe tools/x_session.py."""
     if not path.exists():
         print(f"No encontré {path}. Pasá la ruta con --x-session.")
         return None
@@ -372,7 +372,7 @@ def probe_x(session_path: Path):
         return
     payload = show_response(response)
     if response.status_code != 200:
-        print("  ✗ la sesión no sirve. Esto es lo que Nitter viene disfrazando de 'rate limited'.")
+        print("  ✗ la sesión no sirve.")
         print("    Rehacé las cookies antes de seguir: el cliente nuevo fallaría igual.")
         return
     print(f"  ✓ entro como @{payload.get('screen_name')} "
@@ -437,8 +437,9 @@ def probe_x(session_path: Path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", choices=("x", "instagram"), help="probar una sola plataforma")
-    parser.add_argument("--x-session", default=str(ROOT / "nitter" / "sessions.jsonl"),
-                        help="archivo con las cookies de X (default: las que usa Nitter)")
+    default_session = Path(f"~/.config/diablo-robot/x-session-{os.environ.get('X_USERNAME', '')}.json").expanduser()
+    parser.add_argument("--x-session", default=str(default_session),
+                        help="archivo con las cookies de X (default: las que usa el bot)")
     args = parser.parse_args()
 
     if args.only != "x":

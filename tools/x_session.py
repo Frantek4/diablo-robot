@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
-"""Arma sessions.jsonl para Nitter con las cookies de Firefox, sin automatizar un browser.
+"""Arma la sesión de X del bot con las cookies de Firefox, sin automatizar un browser.
 
-Es el equivalente de 615_import_firefox_session.py de instaloader: en vez de loguearse por
-código —que es lo que dispara los captchas y los bloqueos— reusa la sesión que ya abriste a
-mano en el navegador.
+Es el equivalente de `instaloader --load-cookies firefox`: en vez de loguearse por código —que
+es lo que dispara los captchas y los bloqueos— reusa la sesión que ya abriste a mano.
 
 Uso:
     1. Entrá a https://x.com en Firefox con la cuenta descartable y dejá la sesión abierta.
-    2. python3 import_firefox_session.py --username lacuenta >> sessions.jsonl
-    3. Reiniciá el contenedor: docker compose restart nitter
+    2. python3 tools/x_session.py --username lacuenta
+    3. Si el scaneo estaba frenado: !twitter reanudar
 
-Nitter necesita tres cookies: auth_token, ct0 y twid (de donde sale el id numérico).
+Escribe ~/.config/diablo-robot/x-session-<usuario>.json, que es donde lo busca el bot. Hacen
+falta tres cookies: auth_token, ct0 y twid (de donde sale el id numérico).
 """
 
 import json
 import sys
 from argparse import ArgumentParser
 from glob import glob
-from os.path import expanduser, getsize
+from os import chmod, makedirs
+from os.path import dirname, expanduser, getsize
 from platform import system
 from sqlite3 import OperationalError, connect
 
-# Las que Nitter realmente usa para firmar los requests (ver src/apiutils.nim)
+# Las que firman los pedidos a la API de X: auth_token es la sesión, ct0 el token anti-CSRF
 WANTED = ("auth_token", "ct0", "twid")
 
 
@@ -83,9 +84,10 @@ def extract_user_id(twid: str) -> str | None:
 
 
 def main():
-    parser = ArgumentParser(description="Genera una línea de sessions.jsonl desde las cookies de Firefox.")
+    parser = ArgumentParser(description="Genera la sesión de X del bot desde las cookies de Firefox.")
     parser.add_argument("-c", "--cookiefile", help="ruta a cookies.sqlite (por defecto la busca sola)")
-    parser.add_argument("-u", "--username", required=True, help="la cuenta de X logueada en Firefox")
+    parser.add_argument("-u", "--username", required=True, help="la cuenta de X logueada en Firefox (X_USERNAME)")
+    parser.add_argument("-o", "--output", help="dónde escribirla (por defecto donde la busca el bot)")
     args = parser.parse_args()
 
     cookiefile = args.cookiefile or get_cookiefile()
@@ -108,14 +110,20 @@ def main():
         raise SystemExit(f"No pude sacar el id numérico del twid: {cookies['twid']!r}")
 
     session = {
-        "kind": "cookie",
         "username": args.username,
         "id": user_id,
         "auth_token": cookies["auth_token"],
         "ct0": cookies["ct0"],
+        "twid": cookies["twid"],
     }
-    print(json.dumps(session))
-    print(f"Sesión de @{args.username} (id {user_id}) lista.", file=sys.stderr)
+    output = expanduser(args.output or f"~/.config/diablo-robot/x-session-{args.username}.json")
+    makedirs(dirname(output), exist_ok=True)
+    with open(output, "w", encoding="utf-8") as f:
+        # En una sola línea, porque tools/probe_feeds.py lee un JSON por línea
+        f.write(json.dumps(session) + "\n")
+    # Con estas cookies cualquiera entra a la cuenta
+    chmod(output, 0o600)
+    print(f"Sesión de @{args.username} (id {user_id}) guardada en {output}.", file=sys.stderr)
 
 
 if __name__ == "__main__":

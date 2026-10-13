@@ -9,7 +9,7 @@ from data_access.fixture_dao import FixtureDAO
 from data_access.game_dao import GameDAO
 from data_access.hardware_monitor_dao import HardwareMonitorDAO
 from data_access.influencer_dao import InfluencerDAO
-from data_access.instagram_state_dao import InstagramStateDAO
+from data_access.social_state_dao import SocialStateDAO
 from data_access.news_dao import NewsDAO
 from data_access.self_destruct_message_dao import SelfDestructMessageDAO
 
@@ -38,7 +38,8 @@ class DiabloRobot(commands.Bot):
         self.fixture_dao = FixtureDAO()
         self.self_destruct_message_dao = SelfDestructMessageDAO()
         self.hardware_monitor_dao = HardwareMonitorDAO()
-        self.instagram_state_dao = InstagramStateDAO()
+        self.instagram_state_dao = SocialStateDAO('instagram_state')
+        self.twitter_state_dao = SocialStateDAO('twitter_state')
         self.chess_tournament_dao = ChessTournamentDAO()
 
     async def setup_hook(self):
@@ -52,7 +53,8 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.commands.nuevo_instagram')
         await self.load_extension('bot.commands.nuevo_youtube')
         await self.load_extension('bot.commands.nuevo_twitter')
-        await self.load_extension('bot.commands.nitter')
+        await self.load_extension('bot.commands.twitter')
+        await self.load_extension('bot.commands.seguidos')
         await self.load_extension('bot.commands.instagram')
         await self.load_extension('bot.commands.transmitir')
         await self.load_extension('bot.commands.limpiar')
