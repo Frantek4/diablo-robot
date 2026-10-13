@@ -4,6 +4,7 @@ from discord.ext import commands
 from bot.config.command_access import is_allowed_in
 from bot.config.messager import Messager, init_messager
 from config.settings import settings
+from data_access.chess_tournament_dao import ChessTournamentDAO
 from data_access.fixture_dao import FixtureDAO
 from data_access.game_dao import GameDAO
 from data_access.hardware_monitor_dao import HardwareMonitorDAO
@@ -38,6 +39,7 @@ class DiabloRobot(commands.Bot):
         self.self_destruct_message_dao = SelfDestructMessageDAO()
         self.hardware_monitor_dao = HardwareMonitorDAO()
         self.instagram_state_dao = InstagramStateDAO()
+        self.chess_tournament_dao = ChessTournamentDAO()
 
     async def setup_hook(self):
         await self.load_extension('bot.cogs.fixture_event_creator')
@@ -65,6 +67,7 @@ class DiabloRobot(commands.Bot):
         await self.load_extension('bot.scheduled.instagram_check')
         await self.load_extension('bot.scheduled.minecraft_check')
         await self.load_extension('bot.scheduled.hardware_monitor_check')
+        await self.load_extension('bot.scheduled.chess_check')
         await self.load_extension('bot.scheduled.self_destruct_message_cleanup')
         await self.load_extension('bot.listeners.game_role')
         await self.load_extension('bot.listeners.post_match_discussion')
@@ -80,6 +83,7 @@ class DiabloRobot(commands.Bot):
         self.get_cog('InstagramCheckScheduler').start_scheduled_job()
         self.get_cog('MinecraftCheckScheduler').start_scheduled_job()
         self.get_cog('HardwareMonitorCheckScheduler').start_scheduled_job()
+        self.get_cog('ChessCheckScheduler').start_scheduled_job()
         self.get_cog('SelfDestructMessageCleanupScheduler').start_scheduled_job()
         init_messager(self)
         await self.get_cog('EventLifecycleManager').start()

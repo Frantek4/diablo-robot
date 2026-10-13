@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     HARDWARE_MONITOR_STATUS_MESSAGE_ID: int | None = None
     GOOGLE_CALENDAR_ID: str = ""
     GOOGLE_SERVICE_ACCOUNT_FILE: str = ""
+    # Equipos de Lichess cuyos torneos se agendan como eventos, separados por coma. Vacío = no se agendan
+    LICHESS_TEAM_IDS: str = "ca-independiente-torneos,club-atletico-independiente"
 
     @field_validator("TIMEZONE", mode="before")
     @classmethod

@@ -6,6 +6,9 @@ class EventEndForumPoster(commands.Cog):
 
     @commands.Cog.listener()
     async def on_scheduled_event_end(self, event):
+        # Los torneos de ajedrez se juegan en Lichess, no son un partido para discutir
+        if event.location and "lichess.org" in event.location:
+            return
 
         title = f"Discusión post-partido {event.name}"
         if len(title) > 100:  # Forum post titles max 100 chars
