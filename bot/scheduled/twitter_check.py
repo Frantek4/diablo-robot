@@ -211,7 +211,7 @@ class TwitterCheckScheduler(commands.Cog):
                              f"**La sesión de @{settings.X_USERNAME} en X no sirve más y dejo de leer Twitter.** "
                              f"Dijo: `{error.reason}`. Seguir pidiendo con una sesión vencida es justo lo que "
                              f"delata a un programa, así que no sale ningún pedido más. Logueate en x.com con "
-                             f"esa cuenta en Firefox, rehacé la sesión (`python3 tools/x_session.py --username "
+                             f"esa cuenta en Firefox, rehacé la sesión (`python3 tools/firefox_session.py x "
                              f"{settings.X_USERNAME}`) y corré `{settings.PREFIX}twitter reanudar`: hasta que la "
                              f"sesión en disco sea nueva, no me deja reanudar.")
         else:

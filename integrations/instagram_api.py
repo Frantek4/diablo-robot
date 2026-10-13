@@ -1,7 +1,8 @@
 """Leer la home de Instagram con la sesión de un navegador, sin intermediarios.
 
 Los pedidos son los mismos que hace la web de instagram.com estando logueado. Las cookies salen de
-la sesión que guarda `instaloader --load-cookies firefox`, pero instaloader ya no hace ningún pedido:
+la sesión que escribe `tools/firefox_session.py instagram` (con el formato de instaloader), pero
+instaloader ya no hace ningún pedido:
 era una caja más entre el bot y lo que Instagram contesta, y su manejo de errores (dormir, reintentar,
 buscar perfiles parecidos) era justo lo que había que esquivar.
 """
@@ -27,7 +28,7 @@ _TIMEOUT = aiohttp.ClientTimeout(total=30)
 
 
 def session_path() -> str:
-    """Donde la deja `instaloader --load-cookies firefox --sessionfile ...` (ver CLAUDE.md)."""
+    """Donde la deja `tools/firefox_session.py instagram <usuario>` (el lugar y formato de instaloader)."""
     return expanduser(f"~/.config/instaloader/session-{settings.IG_USERNAME}")
 
 
@@ -115,15 +116,16 @@ def _check(status: int, final_url: str, body: str, target: str | None = None) ->
         data = {}
 
     message = str(data.get("message") or "")
+    # Va primero: Instagram contesta "Please wait a few minutes" con un 401, y eso es un freno que
+    # se pasa, no una sesión vencida
+    if status == 429 or data.get("spam") or "wait a few minutes" in message.lower():
+        raise Throttled(f"Instagram me pidió que espere (HTTP {status}{': ' + message if message else ''})")
     if message == _SESSION_DEAD or data.get("require_login") or status == 401:
         raise AccountFlagged(f"{message or 'login_required'} (HTTP {status})", session_dead=True)
     if message in _FLAGGED or data.get("checkpoint_url"):
         raise AccountFlagged(f"{message or 'checkpoint'} (HTTP {status})")
     if status == 403:
         raise AccountFlagged(f"HTTP 403: {message or body[:200]}")
-
-    if status == 429 or data.get("spam") or "wait a few minutes" in message.lower():
-        raise Throttled(f"Instagram me pidió que espere (HTTP {status}{': ' + message if message else ''})")
 
     if status == 404 and target:
         raise TargetMissing(f"Instagram no encuentra a @{target}")

@@ -159,7 +159,7 @@ def probe_instagram():
         loader.load_session_from_file(username)
     except FileNotFoundError:
         print(f"No hay sesión guardada para @{username}. Generala con "
-              f"'instaloader --load-cookies firefox --sessionfile ~/.config/instaloader/session-{username}'.")
+              f"'python3 tools/firefox_session.py instagram {username}'.")
         return
 
     session = loader.context._session
@@ -210,7 +210,7 @@ def probe_instagram():
 # ------------------------------------------------------------------------ X
 
 def load_x_cookies(path: Path):
-    """Las cookies del bot, las que escribe tools/x_session.py."""
+    """Las cookies del bot, las que escribe `tools/firefox_session.py x`."""
     if not path.exists():
         print(f"No encontré {path}. Pasá la ruta con --x-session.")
         return None

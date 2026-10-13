@@ -6,7 +6,6 @@ from discord.ext import commands, tasks
 
 from config.settings import settings
 from integrations.instagram import Instagram
-from integrations.instagram_api import session_path
 from integrations.social_errors import AccountFlagged, ClientOutdated, Throttled, Unreachable
 from models.social_media import SocialMedia
 from utils.date_format import format_datetime, format_time
@@ -164,8 +163,8 @@ class InstagramCheckScheduler(commands.Cog):
                              f"**La sesión de @{settings.IG_USERNAME} en Instagram no sirve más y dejo de leer.** "
                              f"Dijo: `{error.reason[:400]}`. Seguir pidiendo con una sesión vencida es justo lo "
                              f"que delata a un programa, así que no sale ningún pedido más. Entrá a Instagram "
-                             f"con esa cuenta en Firefox, rehacé la sesión (`instaloader --load-cookies firefox "
-                             f"--sessionfile {session_path()}`) y corré `{settings.PREFIX}instagram reanudar`: "
+                             f"con esa cuenta en Firefox, rehacé la sesión (`python3 tools/firefox_session.py instagram "
+                             f"{settings.IG_USERNAME}`, que no hace ningún pedido) y corré `{settings.PREFIX}instagram reanudar`: "
                              f"hasta que la sesión en disco sea nueva, no me deja reanudar.")
         else:
             await self._stop(error.reason, now, "account",

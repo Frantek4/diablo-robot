@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     GAMES_CATEGORY_ID: int
     USER_AGENT: str
     # Cuenta de X con la que se leen los tweets. Sin esto el bot no lee Twitter. Las cookies van en
-    # ~/.config/diablo-robot/x-session-<usuario>.json (ver tools/x_session.py)
+    # ~/.config/diablo-robot/x-session-<usuario>.json (ver tools/firefox_session.py)
     X_USERNAME: str = ""
     # El User-Agent del navegador del que salieron las cookies: cookies de Firefox viajando con otro
     # User-Agent es una contradicción que se ve del otro lado. Vacío = el USER_AGENT de los scrapers
